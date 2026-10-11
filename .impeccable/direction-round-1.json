@@ -1,0 +1,180 @@
+{
+  "title": "Elige la dirección visual",
+  "question": "¿Qué mundo visual debe guiar la interfaz cloud? El puesto del operador y la auditoría siguen siendo una aplicación web convencional; el mundo solo aporta tipografía, paleta, densidad y un gesto visual.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Atlas docente de anatomía de la mano",
+      "kicker": "THE ROLL",
+      "lineage": "Láminas anatómicas usadas para enseñar movimientos y estructuras de la mano.",
+      "thesis": "La secuencia se sigue con la precisión de una lámina anatómica, sin confundir una propuesta visual con la decisión de Java.",
+      "palette": ["#17363B", "#F1F0E7", "#B6C94B", "#D36C52"],
+      "materials": ["tinta de contorno", "papel mineral", "marcas de registro"],
+      "viewport": "Navegación de rol estable; el operador ve estado de cámara y backend, vista previa local y seis movimientos en orden. ADMIN ve filtros, sesiones y motivos auditables. Un trazo doble distingue candidato de confirmación Java; no dibuja anatomía que la API no entrega.",
+      "risk": "La referencia anatómica puede sugerir evidencia visual no disponible; el trazo debe representar solo estados y eventos reales.",
+      "raised": [
+        {"from": "Teletext Service", "raise": "La jerarquía de estado permanece inequívoca incluso en una pantalla densa; ningún color de estado queda sin texto."},
+        {"from": "Microfiche Reader", "raise": "La paleta y las reglas comprometen toda la superficie, no una tarjeta aislada."},
+        {"from": "Wim Crouwel gridded type specimen", "raise": "La alineación del paso y su evidencia sigue una retícula consistente, sin convertirla en decoración."},
+        {"from": "Saville catalog sleeve", "raise": "El color codifica estados junto con etiquetas legibles; nunca sustituye su significado textual."}
+      ],
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación estándar por rol", "x": 0, "y": 0, "w": 2, "h": 8, "accent": true},
+        {"label": "estado del backend y título de tarea", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "Continuity: vista local, estado y acción Enlazar iPhone", "x": 2, "y": 1, "w": 7, "h": 5, "accent": true},
+        {"label": "secuencia visible de seis movimientos", "x": 9, "y": 1, "w": 3, "h": 5},
+        {"label": "último evento, candidato frente a confirmado, y explicación", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/assigned.webp"
+    },
+    {
+      "id": "model-pick",
+      "label": "Boletín de vigilancia epidemiológica",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Boletines de salud pública con periodos, tendencias y notas de vigilancia.",
+      "thesis": "La operación en vivo y la revisión ADMIN se leen como evidencia fechada, con eventos en una línea de tiempo sobria.",
+      "palette": ["#24334A", "#F3F1E8", "#BD603D", "#A9B944"],
+      "materials": ["papel editorial", "tinta de datos", "reglas temporales"],
+      "viewport": "Shell web familiar; el operador ve cámara y secuencia. ADMIN empieza con filtros por periodo, una tabla de intentos y una banda temporal con el motivo de cada cierre.",
+      "risk": "Su lectura de reporte puede hacer que la sesión activa parezca secundaria.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8, "accent": true},
+        {"label": "periodo, filtro y título", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "tendencia de eventos", "x": 2, "y": 1, "w": 10, "h": 2, "accent": true},
+        {"label": "tabla de intentos auditables", "x": 2, "y": 3, "w": 10, "h": 5}
+      ]},
+      "comp": ".impeccable/mocks/decision/model-pick.webp"
+    },
+    {
+      "id": "challenger-ticket-wallet",
+      "label": "Cartera de cupones de viaje",
+      "verdict": "competitive",
+      "lineage": "Cupones de itinerario de aerolíneas de la era del jet.",
+      "thesis": "Cada movimiento confirmado ocupa un lugar secuencial visible; lo pendiente no desaparece y el orden se entiende de un vistazo.",
+      "palette": ["#1B3150", "#F6F3E9", "#B54435", "#725C83"],
+      "materials": ["papel de cupón", "tinta de carbón", "sellos de estado"],
+      "viewport": "Conserva navegación y controles web estándar; la secuencia aparece como seis pasos pendientes/confirmados junto a la vista de cámara del operador.",
+      "case": "Sostiene claridad de secuencia; pierde identificación con el contexto clínico.",
+      "risk": "Una secuencia de lavado no es un trayecto ni debe parecer un tiquete utilizable como comprobante clínico.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+        {"label": "estado del intento", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "vista de sesión", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "seis cupones en orden", "x": 9, "y": 1, "w": 3, "h": 5, "accent": true},
+        {"label": "motivo y evento Java", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-ticket-wallet.webp"
+    },
+    {
+      "id": "challenger-crouwel-grid",
+      "label": "Retícula tipográfica de Crouwel",
+      "verdict": "competitive",
+      "lineage": "Sistemas tipográficos modernistas construidos sobre retículas modulares.",
+      "thesis": "La geometría ordena el paso actual, la evidencia disponible y el avance confirmado sin depender de ornamento.",
+      "palette": ["#F6F5EF", "#202A38", "#4771B8", "#D65C42"],
+      "materials": ["retícula visible", "tinta plana", "tipografía modular"],
+      "viewport": "La navegación conserva el patrón web; la página divide cámara, secuencia y estado en módulos alineados, con tabla ordenable en ADMIN.",
+      "case": "Sostiene legibilidad geométrica y densidad; su vínculo con prevención de infecciones es indirecto.",
+      "risk": "Si la retícula domina, convierte la evidencia en una muestra tipográfica en vez de una sesión operable.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8, "accent": true},
+        {"label": "título y salud", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "secuencia modular", "x": 9, "y": 1, "w": 3, "h": 5, "accent": true},
+        {"label": "evidencia y explicación", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-crouwel-grid.webp"
+    },
+    {
+      "id": "challenger-variable-font",
+      "label": "Especimen de tipografía variable",
+      "verdict": "declined",
+      "lineage": "Páginas de demostración de ejes tipográficos variables.",
+      "palette": ["#F7F7F2", "#161616", "#526E56"],
+      "materials": ["papel claro", "tinta negra", "ejes tipográficos"],
+      "case": "Pierde en identificación y claridad: manipular tipografía no ayuda a operar ni auditar el lavado.",
+      "kept": "Jerarquía tipográfica rigurosa: la prioridad del estado no depende solo del tamaño.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+        {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "pasos", "x": 9, "y": 1, "w": 3, "h": 5},
+        {"label": "estado", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-variable-font.webp"
+    },
+    {
+      "id": "challenger-streaming-wall",
+      "label": "Muro de catálogo en streaming",
+      "verdict": "declined",
+      "lineage": "Catálogos audiovisuales de filas horizontales y selección enfocada.",
+      "palette": ["#141414", "#EFEFEA", "#B84B3D"],
+      "materials": ["fondos oscuros", "filas de mosaicos", "foco expansivo"],
+      "case": "Pierde en ambas dimensiones: el producto no es un catálogo de medios ni dispone de pósteres para cada evento.",
+      "kept": "Un solo foco de lectura a la vez; los estados secundarios no compiten con el intento activo.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+        {"label": "estado", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "pasos", "x": 9, "y": 1, "w": 3, "h": 5},
+        {"label": "eventos", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-streaming-wall.webp"
+    },
+    {
+      "id": "challenger-timetable",
+      "label": "Horario ferroviario en placas",
+      "verdict": "declined",
+      "lineage": "Horarios impresos de transporte con columnas y marcas de tiempo.",
+      "palette": ["#D0A627", "#25363A", "#F4EFDE", "#A64932"],
+      "materials": ["papel de horario", "columnas", "tinta de señal"],
+      "case": "Pierde ambas dimensiones frente al atlas: el horario sugiere que el tiempo por sí solo acredita los pasos.",
+      "kept": "Las marcas de tiempo deben permanecer visibles para explicar antigüedad y orden de los eventos.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+        {"label": "estado", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "secuencia", "x": 9, "y": 1, "w": 3, "h": 5},
+        {"label": "eventos temporales", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-timetable.webp"
+    },
+    {
+      "id": "challenger-saville-sleeve",
+      "label": "Cubierta de catálogo codificada",
+      "verdict": "declined",
+      "lineage": "Portadas de catálogo de Factory Records con líneas y bloques de color.",
+      "palette": ["#111111", "#F4F1E8", "#E24836", "#7299A5"],
+      "materials": ["superficie negra", "líneas blancas", "códigos cromáticos"],
+      "case": "Pierde en identificación y claridad: nombres codificados y datos ocultos dificultan una operación accesible.",
+      "kept": "El color acompaña estados, pero cada uno conserva una etiqueta y un motivo en texto.",
+      "wireframe": {"cols": 12, "rows": 8, "regions": [
+        {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+        {"label": "estado", "x": 2, "y": 0, "w": 10, "h": 1},
+        {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+        {"label": "secuencia", "x": 9, "y": 1, "w": 3, "h": 5},
+        {"label": "resultado", "x": 2, "y": 6, "w": 10, "h": 2}
+      ]},
+      "comp": ".impeccable/mocks/decision/challenger-saville-sleeve.webp"
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "code", "toggle": true},
+  "canon": true,
+  "canonCard": {
+    "label": "Dashboard clínico estándar",
+    "thesis": "Barra lateral, tarjetas de estado, cámara, lista de pasos y tabla ADMIN con patrones familiares de software clínico.",
+    "palette": ["#FFFFFF", "#17212B", "#2563EB"],
+    "materials": ["rejilla limpia", "tipografía sans", "componentes web estándar"],
+    "viewport": "Puesto de operador y consola de auditoría organizados en el patrón convencional de la categoría.",
+    "risk": "Es fácil de reconocer y operar, pero indistinguible de otros dashboards por diseño.",
+    "wireframe": {"cols": 12, "rows": 8, "regions": [
+      {"label": "navegación", "x": 0, "y": 0, "w": 2, "h": 8},
+      {"label": "cabecera", "x": 2, "y": 0, "w": 10, "h": 1},
+      {"label": "cámara", "x": 2, "y": 1, "w": 7, "h": 5},
+      {"label": "pasos", "x": 9, "y": 1, "w": 3, "h": 5},
+      {"label": "eventos", "x": 2, "y": 6, "w": 10, "h": 2}
+    ]},
+    "comp": ".impeccable/mocks/decision/canon.webp"
+  },
+  "steer": true
+}
