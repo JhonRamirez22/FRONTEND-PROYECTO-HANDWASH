@@ -1,36 +1,55 @@
 ## Surface scope
 
-Cloud web app for Operador live sessions and ADMIN audit, built on the existing React 18/Vite frontend and connected to Java/Spring REST/WSS. Mode: Operate.
+Rediseño visual de la web operativa HandWash para cloud, construido sobre React 18, TypeScript, Vite y Tailwind CSS v4. Las pantallas cubiertas son acceso, estación del operador y auditoría ADMIN.
 
 ## Audience and job
 
-The Mac operator signs in with Cognito, checks the Java deployment and local Continuity preview, starts/stops an authorized session, and reads Java-confirmed events. ADMIN signs in and reviews encounters, failed attempts, access events and per-session audit history without editing records.
+El operador valida configuración, enlaza la vista previa local de Continuity, inicia o finaliza una sesión autorizada y lee el progreso recibido de Java. ADMIN filtra encuentros y consulta eventos en modo de solo lectura.
 
 ## Proof and constraints
 
-Render only live API, WebSocket and browser-camera state. Current API status is DEVELOPMENT with clinicalDecisionAllowed=false. The browser preview is local; WebRTC and RTX YOLO are not connected. No video/photo persistence, fabricated detections, full-OMS claim or clinical approval. Spring remains the authorization and decision authority. Vercel's origin currently fails the Java CORS preflight and Cognito callback settings require an exact Vercel origin before login works there.
+- Renderizar solo estados que procedan del navegador, REST, WebSocket o Cognito.
+- El navegador muestra una vista previa local. WebRTC con la RTX/YOLO no está conectado hasta demostrar lo contrario.
+- Java mantiene autoridad sobre autorización, secuencia y resultado. La interfaz no recalcula reglas.
+- No guardar ni transmitir imágenes/video, inventar detecciones, afirmar cumplimiento OMS completo o presentar aprobación clínica.
+- Mantener rutas, contratos API/WS, login PKCE, roles, controles de cámara y estados funcionales.
+- No cambiar backend, AWS, datos ni modelos como parte del rediseño.
 
 ## Direction contract
 
 ### THESIS
-Use the clinical-dashboard category convention deliberately: the visitor recognizes where to work immediately. Refuse decorative novelty, dashboard-as-poster, hidden status, and confusing proposed detections with Java decisions.
+
+Una estación operativa sobria y propia, diseñada alrededor de la cámara y los estados comprobables, no de tarjetas decorativas. El candidato del modelo y el estado recibido de Java deben distinguirse a primera vista.
 
 ### OWN-WORLD
-The category standard is the commitment: light neutral workspace, dark readable ink, a restrained blue action color, explicit semantic status colors, and standard web typography/components. Use familiar navigation, tables, filters, camera controls and state labels; no governing metaphor or coded vocabulary. Craft references: Linear for compact hierarchy and precise status, Notion for calm readable surfaces, and Stripe for clear operational detail. Borrow only those quality traits; no logos, brand colors, copy, or copied components.
+
+Petróleo `#173F52`, acción accesible `#0D6669`, turquesa `#18B3AE` como acento, lienzo `#F3F8F7`, tinta `#1B2C33` y secundario `#53666B`. Tema claro fijo. Superficies con radio 14px, controles 9px e indicadores cápsula. No usar texto blanco pequeño sobre turquesa.
 
 ### STORY
-Operator sees environment and connection truth, opens the local camera preview, then reads the session sequence as Java confirms it. ADMIN filters and inspects read-only audit records; selection reveals the timeline and coded reasons without changing history.
+
+Acceso muestra estado de configuración y rol. Operador ve primero cámara y progreso, luego controles y eventos. ADMIN filtra y revisa auditoría; seleccionar un encuentro revela su detalle sin modificar datos.
 
 ### FIRST VIEWPORT
-At desktop widths, a compact left navigation identifies the role and its available work areas. A page header names the task and shows deployment mode. Operator view: a wide camera/continuity work area beside the six-step friction sequence; “Enlazar iPhone” sits beside the camera state, not in a generic settings menu. A full-width event/result region sits below. Candidate and confirmed states have separate labels. ADMIN view: audit title, filter row, encounter table with real empty/loading/error states; selected encounter events appear in a nearby detail region. On small screens, navigation becomes a labeled top menu and work areas stack without hiding connection or non-clinical status.
 
-### FORM
-The user explicitly selected the category-standard “Dashboard clínico estándar” (canon) in the Impeccable direction round; build-path is code-first. Direction seed key: 71b45939. The prior visual thread's assignment is not the chosen form.
+En escritorio, navegación petróleo compacta; estación con cámara dominante, ruta local/RTX/Java y progreso visible. ADMIN comienza con título, contexto, filtros y tabla. A menos de 820px la navegación pasa arriba y el contenido se apila; a menos de 560px entradas y controles ocupan una columna y se conserva el estado no clínico.
+
+### DIALS
+
+`DESIGN_VARIANCE: 3`, `MOTION_INTENSITY: 2`, `VISUAL_DENSITY: 5`. La variación baja favorece previsibilidad; movimiento limitado a feedback de controles e icono; densidad media permite leer estados sin convertir todo en tarjetas.
+
+### SKILL INPUTS
+
+- Impeccable establece dirección y revisión final.
+- Taste Skill `design-taste-frontend` se instaló desde el repositorio oficial. Se usa solo como auditoría ant genérica: su guía declara que dashboards y tablas están fuera de alcance.
+- Apple Design aporta fundamentos web de jerarquía, feedback, accesibilidad y adaptación; no se imitan materiales nativos.
+- Transitions.dev guía la transición CSS existente del icono de cámara. Sin dependencia de animación nueva.
+
+### BRAND ASSET
+
+Usar el PNG proporcionado por el usuario sin alterar en acceso, navegación y favicon. Procedencia y SHA-256 documentados en `DESIGN.md`.
 
 ### INTERACTION & ACCESSIBILITY
-Use Apple platform guidance as web-foundation guidance, not as a native macOS imitation: system font stack, responsive layout, visible focus, semantic labels, high-contrast option, and touch targets of at least 44 px. The operator camera area includes a compact numbered path for local Continuity preview → RTX/YOLO relay (pending) → Java API authority. The `Enlazar iPhone` icon swaps only on its real preview state; follow the Transitions.dev icon-swap pattern with reduced-motion support. Keep the tasteful, low-motion status language suitable for an operational interface.
 
-### DESIGN-SKILL INPUTS
-Taste redesign skill: fix clarity and truthful state before decorative polish; preserve the current React stack. Apple Design skill: apply HIG foundations to the responsive web app without copying native navigation or materials. Transitions.dev: use one purposeful CSS-only icon swap; no motion dependency. Impeccable remains the direction and finish-review authority.
+Mantener los controles en 44px o más, foco visible, operación por teclado, contraste WCAG AA en texto y controles, `prefers-reduced-motion` y adaptación a alto contraste. No cambiar el significado de estados ni añadir acciones decorativas.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+FINISH: inspección visual real en escritorio, tablet y móvil, revisión de estados y flujos, pruebas de proyecto, documentación, commit, push y despliegue Vercel autorizado.

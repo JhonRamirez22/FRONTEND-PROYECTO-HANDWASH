@@ -179,32 +179,31 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
   return (
     <AppShell role="ADMIN" roles={shellRoles} active="audit" environmentLabel={environmentLabel}
       onSignOut={view !== 'signed-out' ? signOut : undefined}>
-      <div className="page-heading">
-        <div>
-          <h1>Auditoría</h1>
-          <p>Encuentros, intentos y accesos administrativos · solo lectura.</p>
+      <div className="admin-page">
+        <div className="page-heading">
+          <div>
+            <h1>Auditoría</h1>
+            <p>Encuentros, intentos y accesos administrativos. Solo lectura.</p>
+          </div>
+          <div className="topbar-actions">
+            {roles.includes('OPERATOR') && (
+              <button onClick={onBack} className="button-quiet" type="button"><ArrowLeft size={16} />Estación</button>
+            )}
+            {view === 'ready' && (
+              <button onClick={() => void load()} className="button-quiet" type="button"><RefreshCw size={15} />Actualizar</button>
+            )}
+          </div>
         </div>
-        <div className="topbar-actions">
-          {roles.includes('OPERATOR') && (
-            <button onClick={onBack} className="button-quiet" type="button"><ArrowLeft size={16} />Estación</button>
-          )}
-          {view === 'ready' && (
-            <button onClick={() => void load()} className="button-quiet" type="button"><RefreshCw size={15} />Actualizar</button>
-          )}
-        </div>
-      </div>
 
-        <section className="panel panel-padding flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg bg-emerald-50 p-2 text-emerald-700">
-              <Database className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-heading text-base font-semibold">Registro de encuentros</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                Release de modelo/dataset comparado con la configuración del servidor, `client_id` M2M y epoch del productor. Identifica la credencial lógica, no atesta el hardware. No se guardan imágenes ni video.
-              </p>
-            </div>
+        <section className="admin-context-panel">
+          <div className="admin-context-icon">
+            <Database className="h-5 w-5" />
+          </div>
+          <div>
+            <h2>Registro de encuentros</h2>
+            <p>
+              Release de modelo/dataset comparado con la configuración del servidor, `client_id` M2M y epoch del productor. Identifica la credencial lógica, no atesta el hardware. No se guardan imágenes ni video.
+            </p>
           </div>
         </section>
 
@@ -216,7 +215,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
               <option value="all">Todos los estados</option>
               {statuses.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
             </select>
-            <span className="text-xs text-slate-600">{filteredEncounters.length} de {encounters.length}</span>
+            <span className="admin-result-count">{filteredEncounters.length} de {encounters.length}</span>
           </div>
         )}
 
@@ -226,15 +225,15 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
           </Notice>
         )}
         {view === 'signed-out' && (
-          <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-9">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+          <section className="admin-signed-out">
+            <div className="admin-signed-out-icon">
               <ShieldCheck className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 font-heading text-xl font-semibold">Acceso de administrador</h2>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">
+            <h2>Acceso de administrador</h2>
+            <p>
               Cognito autentica al usuario. El backend verifica el access token y exige pertenecer al grupo ADMIN.
             </p>
-            <button onClick={() => void signIn()} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">
+            <button onClick={() => void signIn()} className="button-primary admin-sign-in">
               Iniciar sesión segura <ArrowUpRight className="h-4 w-4" />
             </button>
           </section>
@@ -244,7 +243,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
         {view === 'error' && (
           <Notice icon={<CircleAlert className="h-5 w-5" />} title="No se pudo cargar la auditoría" tone="error">
             {error ?? 'Error inesperado.'}
-            <button onClick={() => void load()} className="ml-2 inline-flex items-center gap-1 font-semibold underline underline-offset-2">Reintentar</button>
+            <button onClick={() => void load()} className="admin-retry-button">Reintentar</button>
           </Notice>
         )}
         {view === 'forbidden' && (
@@ -255,37 +254,37 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
 
         {view === 'ready' && (
           <>
-            <section className="panel overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-slate-500" />
-                  <h2 className="font-heading font-semibold">Encuentros recientes</h2>
+            <section className="admin-data-section">
+              <div className="admin-section-header">
+                <div className="admin-section-title">
+                  <ClipboardList className="h-4 w-4" />
+                  <h2>Encuentros recientes</h2>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{encounters.length}</span>
+                <span className="admin-count">{encounters.length}</span>
               </div>
               {filteredEncounters.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-slate-500">
+                <p className="admin-empty">
                   {encounters.length === 0 ? 'Aún no hay sesiones auditadas.' : 'Ningún encuentro coincide con estos filtros.'}
                 </p>
               ) : (
-                <div className="audit-table-wrap">
+                <div className="audit-table-wrap" role="region" aria-label="Tabla de encuentros. Desplazamiento horizontal disponible." tabIndex={0}>
                   <table className="audit-table">
                     <thead>
                       <tr><th className="px-5 py-3 font-medium">Inicio</th><th className="px-5 py-3 font-medium">Protocolo</th><th className="px-5 py-3 font-medium">Estado</th><th className="px-5 py-3 font-medium">Modelo / dataset</th><th className="px-5 py-3 font-medium">Productor registrado</th><th className="px-5 py-3 font-medium">Reintentos</th><th className="px-5 py-3" /></tr>
                     </thead>
                     <tbody>
                       {filteredEncounters.map((encounter) => (
-                        <tr key={encounter.sessionId} className={selectedId === encounter.sessionId ? 'bg-blue-50' : ''}>
+                        <tr key={encounter.sessionId} className={selectedId === encounter.sessionId ? 'is-selected' : undefined}>
                           <td className="whitespace-nowrap">{formatDate(encounter.startedAtEpochMs)}</td>
                           <td className="font-medium">{encounter.protocolCode}</td>
                           <td><StatusPill status={encounter.status} /></td>
                           <td>
-                            <span className="block">{encounter.modelVersion} · {encounter.modelSha256.slice(0, 12)}</span>
+                            <span className="block">{encounter.modelVersion} / {encounter.modelSha256.slice(0, 12)}</span>
                             <span className="mt-1 block text-slate-400">{encounter.datasetVersion}</span>
                           </td>
                           <td>
                             {encounter.producerClientId ? (
-                              <><code>{encounter.producerClientId}</code><span className="mt-1 block text-slate-400">epoch {encounter.producerEpoch ?? '—'}</span></>
+                              <><code>{encounter.producerClientId}</code><span className="mt-1 block text-slate-400">epoch {encounter.producerEpoch ?? 'Sin dato'}</span></>
                             ) : 'Sin vincular'}
                           </td>
                           <td className="tabular-nums">{encounter.attemptsRestarted}</td>
@@ -313,23 +312,24 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
             )}
             <AuditEventList title="Accesos ADMIN" events={accessEvents} empty="No hay accesos administrativos registrados." />
             <FailedAttemptList attempts={failedAttempts} />
-            <p className="text-xs leading-5 text-slate-500">
+            <p className="admin-fineprint">
               El panel es de solo lectura: no permite cambiar decisiones, borrar eventos ni recuperar evidencia visual. “Completo” describe el estado registrado del software, no una certificación clínica.
             </p>
           </>
         )}
+      </div>
     </AppShell>
   );
 }
 
 function FailedAttemptList({ attempts }: { attempts: FailedAttemptAuditRecord[] }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-        <h2 className="font-heading font-semibold">Intentos reiniciados</h2>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{attempts.length}</span>
+    <section className="admin-data-section">
+      <div className="admin-section-header">
+        <div className="admin-section-title"><h2>Intentos reiniciados</h2></div>
+        <span className="admin-count">{attempts.length}</span>
       </div>
-      {attempts.length === 0 ? <p className="px-5 py-7 text-sm text-slate-500">No hay reintentos registrados.</p> : (
+      {attempts.length === 0 ? <p className="admin-secondary-empty">No hay reintentos registrados.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -349,30 +349,30 @@ function FailedAttemptList({ attempts }: { attempts: FailedAttemptAuditRecord[] 
           </table>
         </div>
       )}
-      <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Solo metadatos de reintentos; no se exponen el JSON interno ni texto libre de infracciones.</p>
+      <p className="admin-data-footnote">Solo metadatos de reintentos; no se exponen el JSON interno ni texto libre de infracciones.</p>
     </section>
   );
 }
 
 function AuditEventList({ title, events, empty }: { title: string; events: SessionAuditEvent[]; empty: string }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="font-heading font-semibold">{title}</h2>
+    <section className="admin-data-section">
+      <div className="admin-section-header">
+        <div className="admin-section-title"><h2>{title}</h2></div>
       </div>
-      {events.length === 0 ? <p className="px-5 py-7 text-sm text-slate-500">{empty}</p> : (
-        <ol className="divide-y divide-slate-100">
+      {events.length === 0 ? <p className="admin-secondary-empty">{empty}</p> : (
+        <ol className="admin-event-list">
           {events.map((event) => (
-            <li key={event.eventId} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 px-5 py-3.5">
+            <li key={event.eventId} className="admin-event-row">
               <div>
-                <p className="text-sm font-medium text-slate-800">{event.eventType.replace(/_/g, ' ')}</p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="admin-event-title">{event.eventType.replace(/_/g, ' ')}</p>
+                <p className="admin-event-meta">
                   {[event.stepCode, event.decisionCode, event.reasonCode,
                     event.actorSubject ? `sub ${event.actorSubject}` : null]
-                    .filter(Boolean).join(' · ') || 'Evento de acceso'}
+                    .filter(Boolean).join(' / ') || 'Evento de acceso'}
                 </p>
               </div>
-              <time className="text-xs tabular-nums text-slate-500">{formatDate(event.occurredAtEpochMs)}</time>
+              <time>{formatDate(event.occurredAtEpochMs)}</time>
             </li>
           ))}
         </ol>
@@ -384,33 +384,30 @@ function AuditEventList({ title, events, empty }: { title: string; events: Sessi
 function Notice({ icon, title, children, tone = 'neutral' }: {
   icon: ReactNode; title: string; children: ReactNode; tone?: 'neutral' | 'error';
 }) {
-  const color = tone === 'error'
-    ? 'border-rose-200 bg-rose-50 text-rose-800'
-    : 'border-amber-200 bg-amber-50 text-amber-900';
   return (
-    <div role="status" className={`flex items-start gap-3 rounded-xl border p-4 text-sm leading-6 ${color}`}>
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <div><p className="font-semibold">{title}</p><div className="mt-1">{children}</div></div>
+    <div role="status" className={`admin-notice ${tone === 'error' ? 'admin-notice--error' : ''}`}>
+      <span>{icon}</span>
+      <div><p className="admin-notice-title">{title}</p><div className="admin-notice-copy">{children}</div></div>
     </div>
   );
 }
 
 function LoadingNotice({ label }: { label: string }) {
-  return <div role="status" className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-10 text-sm text-slate-600">
+  return <div role="status" className="admin-loading">
     <LoaderCircle className="h-5 w-5 animate-spin" /> {label}
   </div>;
 }
 
 function StatusPill({ status }: { status: string }) {
-  const style = status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-800'
-    : status === 'INTERRUPTED' ? 'bg-amber-50 text-amber-800'
-      : status === 'DELETED' ? 'bg-slate-100 text-slate-700'
-        : 'bg-cyan-50 text-cyan-800';
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{status.replace(/_/g, ' ')}</span>;
+  const tone = status === 'COMPLETED' ? 'admin-status-pill--completed'
+    : status === 'INTERRUPTED' ? 'admin-status-pill--interrupted'
+      : status === 'DELETED' ? 'admin-status-pill--deleted'
+        : status === 'ACTIVE' ? 'admin-status-pill--active' : '';
+  return <span className={`admin-status-pill ${tone}`}>{status.replace(/_/g, ' ')}</span>;
 }
 
 function formatDate(epochMs: number): string {
-  return Number.isFinite(epochMs) ? new Date(epochMs).toLocaleString() : '—';
+  return Number.isFinite(epochMs) ? new Date(epochMs).toLocaleString() : 'Sin fecha';
 }
 
 function messageOf(error: unknown): string {

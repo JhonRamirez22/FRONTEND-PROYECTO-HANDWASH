@@ -1,166 +1,53 @@
----
-name: HandWash Cloud
-description: Interfaz operativa para observar estados reales del backend Java.
-colors:
-  primary: "hsl(221 71% 49%)"
-  background: "hsl(220 20% 98%)"
-  surface: "hsl(0 0% 100%)"
-  foreground: "hsl(222 25% 14%)"
-  muted-text: "hsl(218 11% 39%)"
-  border: "hsl(218 16% 86%)"
-  accent-soft: "hsl(221 80% 96%)"
-  warning: "hsl(36 93% 42%)"
-  success: "hsl(150 67% 34%)"
-  destructive: "hsl(0 67% 48%)"
-typography:
-  display:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "clamp(28px, 3vw, 42px)"
-    fontWeight: 650
-    lineHeight: 1.08
-    letterSpacing: "-0.025em"
-  headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "26px"
-    fontWeight: 670
-    lineHeight: 1.2
-    letterSpacing: "-0.025em"
-  body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.5
-  label:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "12px"
-    fontWeight: 600
-    lineHeight: 1.4
-rounded:
-  sm: "6px"
-  md: "9px"
-  lg: "12px"
-spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
-  xl: "24px"
-  2xl: "32px"
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.md}"
-    padding: "0 14px"
-    height: "44px"
-  button-quiet:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.foreground}"
-    rounded: "8px"
-    padding: "0 11px"
-    height: "44px"
-  panel:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.foreground}"
-    rounded: "11px"
-    padding: "19px"
----
+# HandWash Cloud UI
 
-# Design System: HandWash Cloud
+## Dirección visual
 
-## Overview
+**Lectura:** producto operativo para operadores y administradores, con lenguaje clínico sobrio y estados comprobables. La identidad usa petróleo y turquesa sobre superficies claras; familiar, legible y distinta de un dashboard azul genérico.
 
-**Creative North Star: “Tablero clínico operativo”.**
+La web conserva React 18, TypeScript, Vite, Tailwind CSS v4 y Lucide ya presentes. No se añade una biblioteca de componentes ni de animación. La UI muestra estados del navegador y respuestas reales de Java; Java mantiene la autoridad de acceso, secuencia y resultado.
 
-La interfaz prioriza lectura rápida y estados verificables. Conserva convenciones conocidas de un dashboard, con superficies claras, texto oscuro y azul reservado para la acción primaria. El diseño no imita una app nativa ni usa una metáfora decorativa.
+## Paleta y contraste
 
-El operador sigue una ruta concreta: vista local de Continuity, relay RTX/YOLO pendiente y API Java como autoridad. La consola ADMIN se mantiene de solo lectura. Las referencias a Linear, Notion y Stripe aportan densidad, calma y claridad operativa; no se copian marcas, componentes ni sistemas visuales.
+| Token | Valor | Uso |
+|---|---|---|
+| Petróleo | `#173F52` | Navegación, jerarquía y marca |
+| Turquesa | `#18B3AE` | Acento visual e indicador real; no usar con texto blanco pequeño |
+| Acción | `#0D6669` | Acciones primarias, texto blanco |
+| Fondo | `#F3F8F7` | Lienzo de la aplicación |
+| Texto | `#1B2C33` | Texto principal |
+| Texto secundario | `#53666B` | Instrucciones y metadatos |
+| Borde | `#D5E2DF` | Delimitación de controles y superficies |
 
-## Colors
+Contraste verificado para los pares principales: acción/blanco **6,73:1**; texto/fondo **13,46:1**; secundario/fondo **5,63:1**. Turquesa es acento, no color de texto pequeño sobre blanco. Los estados de éxito, advertencia y error tienen tokens y superficies semánticas separados; el texto siempre acompaña al color.
 
-### Primary
-- **Azul de acción** (`hsl(221 71% 49%)`): acción primaria y énfasis de navegación.
-- **Azul suave** (`hsl(221 80% 96%)`): navegación activa y estados seleccionados.
+## Tipografía, forma y ritmo
 
-### Semantic
-- **Ámbar de advertencia** (`hsl(36 93% 42%)`): configuración pendiente, entorno no verificado o relay sin conectar.
-- **Verde de servicio** (`hsl(150 67% 34%)`): conexión verificada, nunca aprobación clínica.
-- **Rojo de error** (`hsl(0 67% 48%)`): error recuperable o acceso denegado.
+- Sistema: `-apple-system`, `BlinkMacSystemFont`, `Avenir Next`, `Segoe UI`, sans-serif. Se conserva la fuente del sistema para lectura operativa y carga inmediata.
+- Titulares alineados a la tarea, tamaños moderados y cifras tabulares.
+- Superficies: radio de 14 px. Controles: 9 px. Indicadores compactos: cápsula. Elevación tenue y teñida de petróleo; no se mezclan halos y sombras duras.
+- Espaciado basado en 4, 8, 12, 16 y 24 px. En escritorio, navegación lateral y panel de trabajo; bajo 820 px la navegación pasa arriba y las secciones se apilan. En 560 px y menos los filtros y listas colapsan a una columna.
+- Tema claro único para esta estación de trabajo, de acuerdo con la paleta aprobada. No imita materiales nativos de Apple.
 
-### Neutral
-- **Fondo frío** (`hsl(220 20% 98%)`), **superficie** (`hsl(0 0% 100%)`), **tinta** (`hsl(222 25% 14%)`), **texto secundario** (`hsl(218 11% 39%)`) y **borde** (`hsl(218 16% 86%)`).
+## Componentes y comportamiento
 
-**Regla de estado visible.** El texto siempre acompaña al color; el color por sí solo nunca comunica conectado, pendiente o error.
+- Navegación petróleo con área activa legible; el rol solo refleja los permisos recibidos.
+- Acceso en dos superficies: autenticación y estado real del servicio. En móvil permanecen visibles los límites de la integración.
+- Estación: cámara real y su estado, ruta local/RTX/Java, controles, progreso, eventos y resumen. Una propuesta de modelo se etiqueta como candidata; un paso en curso se distingue como estado recibido de Java.
+- Auditoría ADMIN: filtros accesibles, tabla con desplazamiento horizontal, estados de carga/vacío/error y registros de solo lectura. No se agregan valores de ejemplo.
+- Controles táctiles de al menos 44 px, foco visible, navegación por teclado, selección/caret temáticos, contraste reforzado y `prefers-reduced-motion`.
+- Movimiento breve solo para feedback o cambios reales de estado. Se conserva el intercambio CSS del icono de cámara; sin dependencias adicionales ni animación continua de métricas.
 
-## Typography
+## Marca y procedencia del logo
 
-**Display y cuerpo:** `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
+`public/handwash-logo.png` es el archivo PNG entregado por el usuario en `/Users/jhon/Downloads/logo_lavado_manos_yolo.png`. Se copió sin alterar sus píxeles: 2048 × 2048, RGBA con transparencia. SHA-256: `7f32c2b101b212ab619a51ad999f282c520d25e90ffb12665a81545b54cfd32e`. Se usa en acceso, navegación y favicon con `object-fit: contain`; no se recolorea ni se trata como sello de aprobación clínica.
 
-### Hierarchy
-- **Display** (650, `clamp(28px, 3vw, 42px)`, 1.08): encabezados de acceso.
-- **Headline** (670, 23–26px, 1.2): tarea principal de cada pantalla.
-- **Title** (640, 14–16px): paneles, controles y listas.
-- **Body** (400, 14px, 1.5): instrucciones y descripción.
-- **Label** (600, mínimo 11–12px): estado y metadatos; números de medición usan tabulares.
+## Límites que la UI debe conservar
 
-## Layout
+- La vista previa Continuity es local. No implica relay WebRTC, transmisión a la RTX ni inferencia YOLO remota.
+- El modo actual es no clínico; la interfaz no certifica el protocolo OMS ni convierte una secuencia observada en aprobación.
+- No se guardan ni transmiten fotos o video desde la SPA.
+- No cambiar rutas, login Cognito/PKCE, roles, APIs, WebSocket, autorización o reglas de sesión como parte del diseño.
 
-En escritorio, una navegación lateral de 244px acompaña un área de trabajo de hasta 1530px. La estación dispone cámara y secuencia en la primera fila; controles e infracciones en la siguiente. A 1050px se reduce la navegación; a 820px pasa a encabezado y las secciones se apilan en el orden cámara, secuencia, control, infracciones. A 560px se compactan encabezados y formularios sin ocultar estados.
+## Método
 
-El ritmo usa pasos frecuentes de 8, 12, 16 y 24px. La consola de auditoría conserva tablas legibles con desplazamiento horizontal cuando el contenido supera el ancho disponible.
-
-## Elevation & Depth
-
-La profundidad es principalmente estructural: fondos tonales y bordes neutrales. El panel usa `0 1px 2px rgb(20 20 20 / 4%), 0 4px 12px rgb(20 20 20 / 3%)`; el acceso usa una elevación más amplia y tenue. No se usan halos cromáticos.
-
-## Shapes
-
-Los controles y paneles usan radios discretos de 6–12px. Los botones y campos se delimitan con un borde de 1px; los chips reservan formas más compactas. El recorte del video es oscuro por función, para distinguir la imagen real del resto de la superficie.
-
-## Components
-
-### Buttons
-- Primario azul, 44px de alto, texto blanco; hover oscurece el fondo, focus muestra contorno y active reduce escala a 0.98.
-- Quiet blanco con borde neutral, texto tinta y la misma altura táctil.
-- Los controles se deshabilitan cuando falta configuración real; el estado explica qué falta.
-
-### Status tags
-- Superficie tenue con texto legible; estado escrito junto al indicador.
-- “Propuesto” y “confirmado por Java” son estados separados.
-
-### Cards / Containers
-- Superficie blanca, borde neutral de 1px, radio de 11px y sombra tenue.
-- Padding habitual 15–19px; no anidar paneles por decoración.
-
-### Inputs / Fields
-- Fondo blanco, borde neutral, radio 7px y foco visible de 3px.
-- El error nombra el problema y, cuando existe, cómo recuperarse.
-
-### Navigation
-- Navegación lateral compacta en escritorio; navegación horizontal etiquetada en pantallas estrechas.
-- Estado activo usa fondo azul suave y texto, no color solo.
-
-### Ruta de procesamiento
-- Tres pasos numerados porque representan la secuencia técnica: cámara local, relay RTX/YOLO aún pendiente y API Java.
-- La cámara conectada indica únicamente vista previa local. Java solo se muestra disponible tras una respuesta REST válida.
-
-### Movimiento
-- El icono del botón de cámara cruza entre enlazar/desconectar mediante una transición CSS corta.
-- Se respeta `prefers-reduced-motion`; no hay dependencia de animación.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** mantener CORS, Cognito, backend y productor RTX en estados explícitos y comprobados.
-- **Do** ofrecer foco visible, controles táctiles de al menos 44px y compatibilidad con mayor contraste y movimiento reducido.
-- **Do** mostrar valores y eventos confirmados por Java como fuente de verdad.
-
-### Don't:
-- **Don't** presentar la vista previa de Continuity como inferencia YOLO o como video transmitido al PC.
-- **Don't** convertir una clase de modelo, estado del dashboard o evento de software en aprobación clínica.
-- **Don't** guardar o transmitir fotos/video desde esta interfaz.
-- **Don't** afirmar que CORS, Cognito o el relay RTX están configurados mientras las verificaciones fallen o falten.
-
-## Provenance
-
-Guías de método: [Taste redesign skill](https://github.com/Leonxlnx/taste-skill), [Transitions.dev](https://github.com/Jakubantalik/transitions.dev), [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/) e Impeccable local. Solo se incorporó el patrón CSS de intercambio de iconos de Transitions.dev; no se empaquetan las skills ni se copiaron imágenes externas.
+Impeccable guía dirección y revisión final; Apple Design aporta principios universales de legibilidad, respuesta y accesibilidad; Transitions.dev inspira únicamente la transición CSS del icono. Taste se usa como auditoría ant genérica y no como plantilla de landing, pues esta aplicación es un dashboard. No se copian marcas, componentes ni imágenes externas.

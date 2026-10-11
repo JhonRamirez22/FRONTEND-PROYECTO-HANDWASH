@@ -95,7 +95,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
   const intentionDetail = intentionMessages[intentionReason] ?? intentionReason;
 
   return (
-    <div className="neumorphic rounded-2xl p-5">
+    <div className="neumorphic stepper-panel rounded-2xl p-5">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="font-heading text-lg font-semibold text-card-foreground">
           {mode === 'PROTOCOLO_OMS' ? 'Lavado OMS: agua y jabón' : 'Movimientos de fricción'}
@@ -109,19 +109,19 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       </div>
 
       {isActive && mode !== 'PROTOCOLO_OMS' && (
-        <div className="mb-4 rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5 text-xs" role="status" aria-live="polite">
-          <p className="font-semibold text-card-foreground">Intención: {intentionStatus}</p>
+        <div className="step-intention-panel mb-4" role="status" aria-live="polite">
+          <p className="step-intention-title">Intención: {intentionStatus}</p>
           {intentionDetail && intentionDetail !== intentionStatus && (
-            <p className="mt-1 text-muted-foreground">Motivo: {intentionDetail}</p>
+            <p className="step-intention-reason">Motivo: {intentionDetail}</p>
           )}
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+          <div className="step-intention-facts">
             <span>YOLO local (último sondeo): {cameraHandsVisible === null ? 'sin dato' : `${cameraHandsVisible}/2`}</span>
             <span>Evidencia recibida por Java: {visibleIntentionHands}/2</span>
             {intentionThresholdMs > 0 && (
               <span>Confirmación: {intentionElapsedMs}/{intentionThresholdMs} ms</span>
             )}
             {candidateClass && (
-              <span>
+              <span className="step-candidate-label">
                 Candidato: {STEP_LABELS[candidateClass] ?? candidateClass}
                 {candidateConfidence !== null ? ` (${Math.round(candidateConfidence * 100)} %)` : ''}
               </span>
@@ -131,7 +131,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       )}
 
       {isActive && mode === 'PROTOCOLO_OMS' && candidateClass && (
-        <div className="mb-4 text-xs text-muted-foreground" role="status" aria-live="polite">
+        <div className="step-oms-candidate mb-4" role="status" aria-live="polite">
           <p className="font-semibold text-card-foreground">
             Movimiento candidato, sin confirmar: {STEP_LABELS[candidateClass] ?? candidateClass}.
           </p>
@@ -156,21 +156,21 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
         </div>
       )}
 
-      <div className="space-y-1">
+      <div className="step-list space-y-1">
         {steps.map((step, index) => {
           const status = getStepStatus(step);
           return (
-            <div key={step} className="flex items-center gap-3">
+            <div key={step} className={`step-row step-row--${status} flex items-center gap-3`}>
               <div className="relative flex flex-col items-center">
                 <div
                   role="img"
                   aria-label={`${STEP_LABELS[step] ?? step}: ${status === 'completed' ? 'completado y clínicamente validado' : status === 'informational' ? 'registrado como progreso informativo, sin aprobación clínica' : status === 'active' ? 'en curso' : status === 'infraction' ? 'con infracción' : 'pendiente'}`}
                   className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all duration-300',
-                    status === 'active' && 'bg-primary text-primary-foreground ring-4 ring-primary/20 scale-110',
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors duration-150',
+                    status === 'active' && 'bg-primary text-primary-foreground ring-4 ring-primary/20',
                     status === 'completed' && 'bg-success text-success-foreground',
                     status === 'informational' && 'bg-warning text-warning-foreground',
-                    status === 'infraction' && 'bg-destructive text-destructive-foreground animate-pulse-slow',
+                    status === 'infraction' && 'bg-destructive text-destructive-foreground',
                     status === 'pending' && 'bg-muted text-muted-foreground'
                   )}
                 >
@@ -206,6 +206,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
                 >
                   {STEP_LABELS[step] ?? step}
                 </span>
+                {status === 'active' && <span className="step-confirmed-label">Estado Java: en curso</span>}
                 {status === 'infraction' && (
                   <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive uppercase">
                     Infraccion

@@ -69,7 +69,7 @@ export function ControlPanel() {
       {isActive && (
         <div className="session-id-block">
           <span>Sesión</span>
-          <code>{sessionId ?? '—'}</code>
+          <code>{sessionId ?? 'Sin sesión'}</code>
         </div>
       )}
 

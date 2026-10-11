@@ -1,44 +1,95 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-11T21:52:23Z",
+  "generatedAt": "2026-10-11T22:44:23Z",
   "title": "Design System: HandWash Cloud",
   "extensions": {
     "colorMeta": {
       "primary": {
-        "role": "primary",
-        "displayName": "Azul de acción",
-        "canonical": "hsl(221 71% 49%)",
-        "tonalRamp": ["hsl(221 71% 15%)", "hsl(221 71% 26%)", "hsl(221 71% 38%)", "hsl(221 71% 49%)", "hsl(221 71% 62%)", "hsl(221 71% 74%)", "hsl(221 71% 86%)", "hsl(221 71% 96%)"]
+        "role": "action",
+        "displayName": "Petróleo de acción",
+        "canonical": "#0D6669",
+        "contrastOnWhite": "6.73:1"
+      },
+      "brand": {
+        "role": "identity",
+        "displayName": "Petróleo",
+        "canonical": "#173F52"
+      },
+      "accent": {
+        "role": "accent",
+        "displayName": "Turquesa",
+        "canonical": "#18B3AE",
+        "usage": "Acento, nunca texto blanco pequeño"
       },
       "background": {
-        "role": "neutral",
-        "displayName": "Fondo frío",
-        "canonical": "hsl(220 20% 98%)",
-        "tonalRamp": ["hsl(220 20% 15%)", "hsl(220 20% 26%)", "hsl(220 20% 38%)", "hsl(220 20% 50%)", "hsl(220 20% 62%)", "hsl(220 20% 74%)", "hsl(220 20% 86%)", "hsl(220 20% 96%)"]
+        "role": "canvas",
+        "displayName": "Verde de agua claro",
+        "canonical": "#F3F8F7"
       },
-      "warning": {
-        "role": "semantic",
-        "displayName": "Ámbar de advertencia",
-        "canonical": "hsl(36 93% 42%)",
-        "tonalRamp": ["hsl(36 93% 15%)", "hsl(36 93% 26%)", "hsl(36 93% 38%)", "hsl(36 93% 49%)", "hsl(36 93% 62%)", "hsl(36 93% 74%)", "hsl(36 93% 86%)", "hsl(36 93% 96%)"]
+      "foreground": {
+        "role": "text",
+        "displayName": "Tinta petróleo oscura",
+        "canonical": "#1B2C33",
+        "contrastOnCanvas": "13.46:1"
+      },
+      "mutedText": {
+        "role": "secondary-text",
+        "displayName": "Tinta secundaria",
+        "canonical": "#53666B",
+        "contrastOnCanvas": "5.63:1"
       }
     },
     "typographyMeta": {
-      "display": { "displayName": "System UI Display", "purpose": "Títulos principales; mismo stack que el cuerpo." },
-      "body": { "displayName": "System UI", "purpose": "Lectura operativa en Mac y navegador." }
+      "display": {
+        "displayName": "System UI Display",
+        "purpose": "Títulos breves de estación y acceso"
+      },
+      "body": {
+        "displayName": "System UI",
+        "purpose": "Lectura operativa en Mac, escritorio y navegador"
+      }
+    },
+    "shape": {
+      "surfaceRadius": "14px",
+      "controlRadius": "9px",
+      "compactIndicatorRadius": "999px"
     },
     "shadows": [
-      { "name": "panel-low", "value": "0 1px 2px rgb(20 20 20 / 4%), 0 4px 12px rgb(20 20 20 / 3%)", "purpose": "Separación leve de paneles sobre el fondo frío." },
-      { "name": "access-panel", "value": "0 2px 4px rgb(20 20 20 / 4%), 0 12px 32px rgb(20 20 20 / 5%)", "purpose": "Agrupar el formulario de acceso sin halo cromático." }
+      {
+        "name": "panel-low",
+        "value": "0 1px 2px rgb(23 63 82 / 4%), 0 8px 20px rgb(23 63 82 / 4%)",
+        "purpose": "Separar paneles sin competir con el contenido"
+      },
+      {
+        "name": "access-panel",
+        "value": "0 2px 5px rgb(23 63 82 / 5%), 0 18px 48px rgb(23 63 82 / 8%)",
+        "purpose": "Delimitar el formulario sobre el lienzo"
+      }
     ],
     "motion": [
-      { "name": "icon-swap", "value": "250ms ease-in-out", "purpose": "Indicar cambio real entre enlazar y desconectar cámara." },
-      { "name": "control-press", "value": "80ms ease-out, scale(.98)", "purpose": "Respuesta táctil al presionar; omitida con movimiento reducido." }
+      {
+        "name": "icon-swap",
+        "value": "250ms ease-in-out",
+        "purpose": "Indicar el cambio real entre enlazar y desconectar cámara"
+      },
+      {
+        "name": "control-press",
+        "value": "80ms ease-out, scale(.98)",
+        "purpose": "Respuesta táctil al presionar; omitida con movimiento reducido"
+      }
     ],
     "breakpoints": [
       { "name": "tablet", "value": "1050px" },
       { "name": "compact", "value": "820px" },
       { "name": "mobile", "value": "560px" }
+    ],
+    "assets": [
+      {
+        "name": "HandWash logo",
+        "path": "public/handwash-logo.png",
+        "source": "Archivo proporcionado por el usuario, copiado sin edición",
+        "sha256": "7f32c2b101b212ab619a51ad999f282c520d25e90ffb12665a81545b54cfd32e"
+      }
     ]
   },
   "components": [
@@ -46,52 +97,73 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Acción principal disponible solo si su configuración permite ejecutarla.",
-      "html": "<button class=\"ds-btn-primary\" type=\"button\">Enlazar iPhone</button>",
-      "css": ".ds-btn-primary { min-height: 44px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; background: hsl(221 71% 49%); color: #fff; font: 630 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: background-color 150ms ease, transform 80ms ease-out; } .ds-btn-primary:hover:not(:disabled) { background: #1e49b1; } .ds-btn-primary:active:not(:disabled) { transform: scale(.98); } .ds-btn-primary:focus-visible { outline: 3px solid #4d76df; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .6; cursor: not-allowed; }"
+      "description": "Acción disponible solo cuando la configuración real lo permite.",
+      "html": "<button class=\"button-primary\" type=\"button\">Enlazar iPhone</button>",
+      "css": ".button-primary { min-height: 44px; padding: 0 15px; border-radius: 9px; background: #0D6669; color: #fff; }"
     },
     {
       "name": "Quiet Button",
       "kind": "button",
       "refersTo": "button-quiet",
-      "description": "Acción secundaria con contorno neutral.",
-      "html": "<button class=\"ds-btn-quiet\" type=\"button\">Cerrar sesión</button>",
-      "css": ".ds-btn-quiet { min-height: 44px; padding: 0 11px; border: 1px solid #dfe4eb; border-radius: 8px; background: #fff; color: #334056; font: 570 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-btn-quiet:hover { background: #f7f8fa; } .ds-btn-quiet:active { transform: scale(.98); } .ds-btn-quiet:focus-visible { outline: 3px solid #4d76df; outline-offset: 2px; }"
+      "description": "Acción secundaria con contorno y contraste legibles.",
+      "html": "<button class=\"button-quiet\" type=\"button\">Cerrar sesión</button>",
+      "css": ".button-quiet { min-height: 44px; padding: 0 12px; border: 1px solid #C7D8D4; border-radius: 9px; background: #fff; color: #173F52; }"
     },
     {
       "name": "Status Chip",
       "kind": "chip",
       "refersTo": "state-tag-active",
-      "description": "Texto de estado más superficie semántica; no depende del color solo.",
-      "html": "<span class=\"ds-status\">API REST disponible</span>",
-      "css": ".ds-status { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border-radius: 5px; background: #e9f6ef; color: #17623d; font: 650 11px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }"
+      "description": "El texto acompaña al color y nombra el estado recibido.",
+      "html": "<span class=\"state-tag state-tag-active\">Sesión activa</span>",
+      "css": ".state-tag-active { min-height: 25px; padding: 3px 9px; border-radius: 999px; background: #EAF6EF; color: #176044; }"
     },
     {
       "name": "Panel",
-      "kind": "card",
+      "kind": "surface",
       "refersTo": "panel",
-      "description": "Contenedor estructural para la cámara, secuencia y auditoría.",
-      "html": "<section class=\"ds-panel\"><h2>Movimientos de fricción</h2><p>Estado confirmado por Java</p></section>",
-      "css": ".ds-panel { padding: 19px; border: 1px solid #dfe4eb; border-radius: 11px; background: #fff; color: #1b202b; box-shadow: 0 1px 2px rgb(20 20 20 / 4%), 0 4px 12px rgb(20 20 20 / 3%); } .ds-panel h2 { margin: 0 0 6px; font: 640 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-panel p { margin: 0; color: #59667a; font: 400 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }"
+      "description": "Superficie para cámara, progreso y auditoría; no se anida por decoración.",
+      "html": "<section class=\"panel\"><h2>Movimientos de fricción</h2><p>Estado recibido de Java</p></section>",
+      "css": ".panel { border: 1px solid #D5E2DF; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgb(23 63 82 / 4%), 0 8px 20px rgb(23 63 82 / 4%); }"
     },
     {
       "name": "Processing Path",
       "kind": "custom",
       "refersTo": "connection-path",
-      "description": "Tres etapas con lenguaje explícito sobre vista local, relay pendiente y autoridad Java.",
-      "html": "<ol class=\"ds-path\"><li><strong>Continuity</strong><span>Vista previa local</span></li><li><strong>PC RTX · YOLO26</strong><span>Relay WebRTC pendiente</span></li><li><strong>Java · autoridad</strong><span>API REST disponible</span></li></ol>",
-      "css": ".ds-path { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 13px 16px 15px; border-bottom: 1px solid #e7ebf0; background: #f8fafc; list-style: none; } .ds-path li { display: grid; gap: 3px; min-width: 0; } .ds-path strong { color: #344056; font: 680 11px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-path span { color: #637086; font: 400 11px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } @media (max-width: 560px) { .ds-path { grid-template-columns: 1fr; } }"
+      "description": "Distingue vista local, relay RTX pendiente y autoridad Java.",
+      "html": "<ol class=\"connection-path\"><li>Continuity, vista previa local</li><li>PC RTX / YOLO26, relay pendiente</li><li>Java, autoridad de sesión</li></ol>",
+      "css": ".connection-path { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; background: #F8FBFA; } @media (max-width: 560px) { .connection-path { grid-template-columns: 1fr; } }"
     }
   ],
   "narrative": {
-    "northStar": "Tablero clínico operativo",
-    "overview": "Un dashboard convencional, claro y verificable para operador y auditor. Java mantiene autoridad sobre permisos y decisiones; la interfaz distingue preview de inferencia y resultado confirmado.",
-    "keyCharacteristics": ["Jerarquía compacta", "Estados explícitos", "Superficies neutrales", "Diseño responsivo"],
-    "rules": [
-      { "name": "Estado visible", "body": "El texto acompaña siempre al color; no usar el color como único indicador.", "section": "colors" },
-      { "name": "Sin falsa inferencia", "body": "La vista local no se presenta como video transmitido ni como detección YOLO.", "section": "components" }
+    "northStar": "Operación clínica clara, estados verificables",
+    "overview": "Interfaz de trabajo no clínica para operador y auditor. Conserva los flujos y diferencia cámara local, candidato de modelo y estado Java.",
+    "keyCharacteristics": [
+      "Marca petróleo y turquesa",
+      "Jerarquía operativa",
+      "Estados explícitos",
+      "Accesibilidad y baja animación"
     ],
-    "dos": ["Usar controles de al menos 44px.", "Respetar prefers-reduced-motion y alto contraste.", "Indicar cuándo Java REST respondió correctamente."],
-    "donts": ["No afirmar que YOLO/RTX o WebRTC están conectados hasta comprobarlos.", "No atribuir aprobación clínica a un estado visual.", "No guardar ni transmitir medios desde la SPA."]
+    "rules": [
+      {
+        "name": "Estado comprobable",
+        "body": "No presentar la vista local como inferencia remota ni un candidato como paso confirmado.",
+        "section": "components"
+      },
+      {
+        "name": "No clínico",
+        "body": "No atribuir aprobación clínica a un estado visual o una secuencia de fricción.",
+        "section": "content"
+      }
+    ],
+    "dos": [
+      "Usar controles táctiles de al menos 44px.",
+      "Respetar movimiento reducido y contraste alto.",
+      "Conservar las etiquetas y el contenido funcional existentes."
+    ],
+    "donts": [
+      "No afirmar que WebRTC o RTX están conectados sin evidencia.",
+      "No guardar ni transmitir imágenes desde la SPA.",
+      "No cambiar contratos, roles o reglas de Java durante un rediseño."
+    ]
   }
 }

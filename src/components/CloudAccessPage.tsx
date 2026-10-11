@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Hand, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { cognitoAdminAuth } from '@/lib/adminAuth';
 import { DeploymentStatusService, type DeploymentStatus } from '@/lib/DeploymentStatusService';
 
@@ -44,7 +44,7 @@ export function CloudAccessPage({ message }: CloudAccessPageProps) {
     <main className="access-page">
       <section className="access-panel" aria-labelledby="access-title">
         <a className="brand-lockup access-brand" href="#/" aria-label="HandWash">
-          <span className="brand-mark"><Hand size={20} strokeWidth={2.2} /></span>
+          <span className="brand-mark"><img src="/handwash-logo.png" alt="" /></span>
           <span><strong>HandWash</strong><small>Estación de verificación</small></span>
         </a>
         <div className="access-copy">
@@ -78,7 +78,7 @@ export function CloudAccessPage({ message }: CloudAccessPageProps) {
         <div className="access-note"><ShieldCheck size={16} /><span>La autorización final siempre la valida el backend Java.</span></div>
       </section>
       <aside className="access-aside">
-        <div className="aside-mark"><Hand size={28} strokeWidth={1.7} /></div>
+        <div className="aside-mark"><img src="/handwash-logo.png" alt="" /></div>
         <h2>Lo que el sistema sí puede confirmar</h2>
         <p>La cámara local, las propuestas del modelo y los eventos confirmados por Java se muestran como estados distintos.</p>
           <div className="access-limits">

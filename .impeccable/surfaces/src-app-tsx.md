@@ -1,37 +1,47 @@
 ---
-version: 1
+version: 2
 slug: "src-app-tsx"
 primary_target: "src/App.tsx"
-related_targets: []
+related_targets:
+  - "src/components/AppShell.tsx"
+  - "src/components/CloudAccessPage.tsx"
+  - "src/components/AdminAuditPage.tsx"
+  - "src/components/LiveCameraFeed.tsx"
+  - "src/components/StepStepper.tsx"
+  - "src/index.css"
 ---
 
 ## Surface scope
 
-Cloud web app for Operador live sessions and ADMIN audit, built on the existing React 18/Vite frontend and connected to Java/Spring REST/WSS. Mode: Operate.
+Cloud operations web UI for OPERATOR live sessions and ADMIN read-only audit, using the existing React 18/Vite app and Java/Spring REST/WSS.
 
 ## Audience and job
 
-The Mac operator signs in with Cognito, checks the Java deployment and local Continuity preview, starts/stops an authorized session, and reads Java-confirmed events. ADMIN signs in and reviews encounters, failed attempts, access events and per-session audit history without editing records.
+The operator checks environment/API state, previews Continuity locally, manages an authorized session and reads Java-confirmed progress. ADMIN reviews encounters, failed attempts, access events and per-session audit without editing records.
 
-## Proof and constraints
+## Truth constraints
 
-Render only live API, WebSocket and browser-camera state. Current API status is DEVELOPMENT with clinicalDecisionAllowed=false. The browser preview is local; WebRTC and RTX YOLO are not connected. No video/photo persistence, fabricated detections, full-OMS claim or clinical approval. Spring remains the authorization and decision authority. Vercel's origin currently fails the Java CORS preflight and Cognito callback settings require an exact Vercel origin before login works there.
+- Render only real Cognito, backend, WebSocket and browser-camera state.
+- Continuity preview is local to the Mac. No WebRTC relay or RTX YOLO transmission is implied.
+- Keep camera candidate and Java session state visually distinct.
+- Preserve no-photo/no-video persistence and the non-clinical warning.
+- Keep the route structure, role behavior, Cognito PKCE, API/WS contracts and camera controls unchanged.
 
-## Direction contract
+## Direction
 
-### THESIS
-Use the clinical-dashboard category convention deliberately: the visitor recognizes where to work immediately. Refuse decorative novelty, dashboard-as-poster, hidden status, and confusing proposed detections with Java decisions.
+Light clinical-operational identity: petroleum `#173F52`, turquoise `#18B3AE` as accent only, action `#0D6669`, canvas `#F3F8F7`, ink `#1B2C33`, secondary `#53666B`. Navigation is dark petroleum; work surfaces remain pale and readable. Surface radius 14px, control radius 9px, pill status. System UI stack. No new visual or animation dependencies.
 
-### OWN-WORLD
-The category standard is the commitment: light neutral workspace, dark readable ink, a restrained blue action color, explicit semantic status colors, and standard web typography/components. Use familiar navigation, tables, filters, camera controls and state labels; no governing metaphor or coded vocabulary. Craft references: Linear for compact hierarchy and precise status, Notion for calm readable surfaces, and Stripe for clear operational detail. Borrow only those quality traits; no logos, brand colors, copy, or copied components.
+## Screen composition
 
-### STORY
-Operator sees environment and connection truth, opens the local camera preview, then reads the session sequence as Java confirms it. ADMIN filters and inspects read-only audit records; selection reveals the timeline and coded reasons without changing history.
+- Access: sign-in and actual service status beside a petroleum panel that states the integration limits. Keep the limits visible on mobile.
+- Operator: camera and processing path are the primary work area; show a model proposal separately from Java progress; controls, events and summary remain available.
+- ADMIN: title, read-only context, accessible filters, real loading/empty/error states, horizontally navigable audit data and selected event history.
+- At 820px or less, stack work areas and move navigation to the top. At 560px or less, filters and connection path use one column.
 
-### FIRST VIEWPORT
-At desktop widths, a compact left navigation identifies the role and its available work areas. A page header names the task and shows deployment mode. Operator view: a wide camera/continuity work area beside the six-step friction sequence; “Enlazar iPhone” sits beside the camera state, not in a generic settings menu. A full-width event/result region sits below. Candidate and confirmed states have separate labels. ADMIN view: audit title, filter row, encounter table with real empty/loading/error states; selected encounter events appear in a nearby detail region. On small screens, navigation becomes a labeled top menu and work areas stack without hiding connection or non-clinical status.
+## Accessibility and motion
 
-### FORM
-The user explicitly selected the category-standard “Dashboard clínico estándar” (canon) in the Impeccable direction round; build-path is code-first. Direction seed key: 71b45939. The prior visual thread's assignment is not the chosen form.
+Touch targets at least 44px; visible keyboard focus; WCAG AA contrast for body text and controls; `prefers-reduced-motion` and `prefers-contrast: more`. CSS icon swap remains tied to real camera state. No continuous animation of live values.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+## Design method
+
+Use Impeccable for finish review, Apple Design foundations for web accessibility, Taste Skill only for anti-generic auditing because dashboards are explicitly out of scope for its layout recipes, and Transitions.dev for the existing CSS icon swap. Logo provenance is in `DESIGN.md`.

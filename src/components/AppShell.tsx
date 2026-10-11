@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ClipboardList, Hand, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react';
+import { ClipboardList, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react';
 import type { HumanRole } from '@/lib/CognitoAdminAuthService';
 
 interface AppShellProps {
@@ -21,7 +21,7 @@ export function AppShell({ role, roles, active, onSignOut, status,
     <div className="app-frame">
       <aside className="app-sidebar" aria-label="Navegación principal">
         <a className="brand-lockup" href="#/" aria-label="HandWash, inicio">
-          <span className="brand-mark"><Hand size={19} strokeWidth={2.2} /></span>
+          <span className="brand-mark"><img src="/handwash-logo.png" alt="" /></span>
           <span><strong>HandWash</strong><small>Estación de verificación</small></span>
         </a>
 
@@ -50,7 +50,6 @@ export function AppShell({ role, roles, active, onSignOut, status,
       <div className="app-workspace">
         <header className="app-topbar">
           <div className="topbar-context">
-            <span className="environment-dot" aria-hidden="true" />
             <span>{environmentLabel}</span>
             <span className="topbar-separator">/</span>
             <span>{active === 'audit' ? 'Solo lectura' : 'Operación'}</span>

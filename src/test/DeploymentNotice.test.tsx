@@ -13,7 +13,7 @@ describe('DeploymentNotice', () => {
 
     render(<DeploymentNotice status={status} />);
 
-    expect(screen.getByRole('alert', { name: 'DEMOSTRACIÓN — NO USAR CLÍNICAMENTE' })).toBeInTheDocument();
+    expect(screen.getByRole('alert', { name: 'DEMOSTRACIÓN: NO USAR CLÍNICAMENTE' })).toBeInTheDocument();
     expect(screen.getByText('No usar para decisiones clínicas.')).toBeInTheDocument();
   });
 
@@ -26,6 +26,6 @@ describe('DeploymentNotice', () => {
 
     render(<DeploymentNotice status={status} />);
 
-    expect(screen.getByRole('alert', { name: 'PILOTO SUPERVISADO — NO ES PRODUCCIÓN CLÍNICA' })).toBeInTheDocument();
+    expect(screen.getByRole('alert', { name: 'PILOTO SUPERVISADO: NO ES PRODUCCIÓN CLÍNICA' })).toBeInTheDocument();
   });
 });
