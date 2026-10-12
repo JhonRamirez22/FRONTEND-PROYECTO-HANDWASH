@@ -13,19 +13,21 @@ related_targets:
 
 ## Surface scope
 
-Cloud operations web UI for OPERATOR live sessions and ADMIN read-only audit, using the existing React 18/Vite app and Java/Spring REST/WSS.
+Cloud operations web UI with a public fixed kiosk and an unlisted Cognito ADMIN console, using the existing React 18/Vite app, Vercel BFF and Java/Spring REST/WSS.
 
 ## Audience and job
 
-The operator checks environment/API state, previews Continuity locally, manages an authorized session and reads Java-confirmed progress. ADMIN reviews encounters, failed attempts, access events and per-session audit without editing records.
+The kiosk shows real registration, camera, backend and Java-confirmed session state; it requests camera permission only after an explicit start. ADMIN enrolls/revokes stations and reviews encounters, failed attempts, access events and per-session audit without editing decisions.
 
 ## Truth constraints
 
 - Render only real Cognito, backend, WebSocket and browser-camera state.
 - Continuity preview is local to the Mac. No WebRTC relay or RTX YOLO transmission is implied.
 - Keep camera candidate and Java session state visually distinct.
+- Never show human roles or an admin link on the public kiosk. The unlisted hash route is not a secret; Java API authorization remains authoritative.
+- Station credentials and owner capabilities stay in secure HttpOnly cookies behind same-origin Vercel functions, never in the browser bundle or local storage.
 - Preserve no-photo/no-video persistence and the non-clinical warning.
-- Keep the route structure, role behavior, Cognito PKCE, API/WS contracts and camera controls unchanged.
+- Keep the six-step/sequence behavior, Cognito PKCE for ADMIN, Java API/WS contract and real camera controls unchanged.
 
 ## Direction
 
@@ -33,9 +35,8 @@ Light clinical-operational identity: petroleum `#173F52`, turquoise `#18B3AE` as
 
 ## Screen composition
 
-- Access: sign-in and actual service status beside a petroleum panel that states the integration limits. Keep the limits visible on mobile.
-- Operator: camera and processing path are the primary work area; show a model proposal separately from Java progress; controls, events and summary remain available.
-- ADMIN: title, read-only context, accessible filters, real loading/empty/error states, horizontally navigable audit data and selected event history.
+- Public kiosk: one-time enrollment when unregistered; otherwise camera and actual processing path remain primary. State clearly that RTX/YOLO inference is not connected.
+- ADMIN: sign-in only at `/#/admin`; station management, accessible filters, real loading/empty/error states, audit data and selected event history.
 - At 820px or less, stack work areas and move navigation to the top. At 560px or less, filters and connection path use one column.
 
 ## Accessibility and motion

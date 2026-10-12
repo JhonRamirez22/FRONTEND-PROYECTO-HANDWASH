@@ -1,25 +1,52 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Play, Square } from 'lucide-react';
 import { useSession } from '@/hooks/useSession';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { Protocolo } from '@/types';
 import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
+import type { ActiveStationSession } from '@/lib/StationApi';
 
-export function ControlPanel() {
+interface ControlPanelProps {
+  onBeforeStart?: () => Promise<void>;
+  onStartFailure?: () => void;
+  publicStation?: boolean;
+  initialSession?: ActiveStationSession | null;
+}
+
+export function ControlPanel({ onBeforeStart, onStartFailure, publicStation = false, initialSession = null }: ControlPanelProps) {
   const [protocolo, setProtocolo] = useState<Protocolo>('DOMESTICO');
   const [isLoading, setIsLoading] = useState(false);
+  const [resuming, setResuming] = useState(Boolean(initialSession));
   const [error, setError] = useState<string | null>(null);
-  const { start, stop, isActive, isOwner } = useSession();
+  const { start, stop, resume, isActive, isOwner } = useSession();
   const sessionId = useSessionStore((state) => state.sessionId);
   const cloudMode = RuntimeEndpointConfig.isCloudMode();
+  const requestId = useRef<string | null>(null);
+  const resumedSessionId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!initialSession || resumedSessionId.current === initialSession.sessionId) return;
+    resumedSessionId.current = initialSession.sessionId;
+    try {
+      resume(initialSession);
+    } catch {
+      setError('No se pudo reconectar con la sesión activa del puesto.');
+    } finally {
+      setResuming(false);
+    }
+  }, [initialSession, resume]);
 
   async function handleStart() {
     setIsLoading(true);
     setError(null);
     try {
-      await start(protocolo);
+      await onBeforeStart?.();
+      if (cloudMode && requestId.current === null) requestId.current = crypto.randomUUID();
+      await start(protocolo, requestId.current ?? undefined);
+      requestId.current = null;
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo iniciar la sesión.');
+      onStartFailure?.();
     } finally {
       setIsLoading(false);
     }
@@ -41,11 +68,11 @@ export function ControlPanel() {
     <section className="panel panel-padding" aria-labelledby="session-controls-title">
       <div className="panel-title-row">
         <div>
-          <h2 id="session-controls-title">Control de sesión</h2>
+          <h2 id="session-controls-title">{publicStation ? 'Puesto de lavado' : 'Control de sesión'}</h2>
           <p>El backend Java valida el orden de las observaciones.</p>
         </div>
         <span className={`state-tag ${isActive ? 'state-tag-active' : 'state-tag-muted'}`}>
-          {isActive ? 'Activa' : 'Inactiva'}
+          {resuming ? 'Recuperando' : isActive ? 'Activa' : 'Inactiva'}
         </span>
       </div>
 
@@ -76,17 +103,18 @@ export function ControlPanel() {
       {cloudMode && (
         <p className="integration-note">
           {isActive
-            ? 'La sesión está abierta en Java. El productor RTX aún no está conectado; no se están evaluando pasos desde esta cámara.'
-            : 'Primero enlaza la cámara local. La conexión de video con la PC RTX aún no está disponible.'}
+            ? 'Java mantiene la sesión. La cámara negocia WebRTC directo con el PC RTX; solo se mostrarán pasos que Java confirme.'
+            : 'Al iniciar se solicitará la cámara y se abrirá la sesión. Después se negociará el enlace WebRTC con el PC RTX.'}
         </p>
       )}
 
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!isActive ? (
-        <button className="button-primary session-action" type="button" onClick={() => void handleStart()} disabled={isLoading}>
-          {isLoading ? <LoaderCircle className="animate-spin" size={17} /> : <Play size={17} fill="currentColor" />}
-          {isLoading ? 'Iniciando sesión…' : 'Iniciar sesión'}
+        <button className="button-primary session-action" type="button" onClick={() => void handleStart()} disabled={isLoading || resuming}>
+          {isLoading || resuming ? <LoaderCircle className="animate-spin" size={17} /> : <Play size={17} fill="currentColor" />}
+          {resuming ? 'Recuperando sesión…' : isLoading ? (publicStation ? 'Preparando puesto…' : 'Iniciando sesión…')
+            : (publicStation ? 'Iniciar detección' : 'Iniciar sesión')}
         </button>
       ) : (
         <button className="button-danger session-action" type="button" onClick={() => void handleStop()} disabled={isLoading}>

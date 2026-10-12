@@ -6,6 +6,7 @@ interface AppShellProps {
   role: HumanRole;
   roles: HumanRole[];
   active: 'station' | 'audit';
+  publicStation?: boolean;
   onSignOut?: () => void;
   status?: ReactNode;
   environmentLabel?: string;
@@ -13,13 +14,13 @@ interface AppShellProps {
 }
 
 export function AppShell({ role, roles, active, onSignOut, status,
-  environmentLabel = 'Entorno no verificado', children }: AppShellProps) {
+  publicStation = false, environmentLabel = 'Entorno no verificado', children }: AppShellProps) {
   const canOperate = roles.includes('OPERATOR');
   const canAudit = roles.includes('ADMIN');
 
   return (
-    <div className="app-frame">
-      <aside className="app-sidebar" aria-label="Navegación principal">
+    <div className={`app-frame ${publicStation ? 'is-public-station' : ''}`}>
+      {!publicStation && <aside className="app-sidebar" aria-label="Navegación principal">
         <a className="brand-lockup" href="#/" aria-label="HandWash, inicio">
           <span className="brand-mark"><img src="/handwash-logo.png" alt="" /></span>
           <span><strong>HandWash</strong><small>Estación de verificación</small></span>
@@ -45,14 +46,20 @@ export function AppShell({ role, roles, active, onSignOut, status,
           <div className="role-chip"><ShieldCheck size={15} />{role === 'ADMIN' ? 'Administrador' : 'Operador'}</div>
           <p>Acceso y decisiones gestionados por Java.</p>
         </div>
-      </aside>
+      </aside>}
 
       <div className="app-workspace">
         <header className="app-topbar">
           <div className="topbar-context">
-            <span>{environmentLabel}</span>
-            <span className="topbar-separator">/</span>
-            <span>{active === 'audit' ? 'Solo lectura' : 'Operación'}</span>
+            {publicStation && <a className="brand-lockup public-brand" href="#/" aria-label="HandWash, puesto">
+              <span className="brand-mark"><img src="/handwash-logo.png" alt="" /></span>
+              <span><strong>HandWash</strong><small>Estación de lavado</small></span>
+            </a>}
+            {!publicStation && <>
+              <span>{environmentLabel}</span>
+              <span className="topbar-separator">/</span>
+              <span>{active === 'audit' ? 'Solo lectura' : 'Operación'}</span>
+            </>}
           </div>
           <div className="topbar-actions">
             {status}

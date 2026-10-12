@@ -5,6 +5,7 @@ import {
   RefreshCw, ShieldCheck, ShieldX,
 } from 'lucide-react';
 import { AdminAuditApi, type EncounterAuditRecord, type FailedAttemptAuditRecord, type SessionAuditEvent } from '../lib/AdminAuditApi';
+import { AdminStationRegistry } from './AdminStationRegistry';
 import { cognitoAdminAuth } from '../lib/adminAuth';
 import { DeploymentStatusService } from '../lib/DeploymentStatusService';
 import { AppShell } from './AppShell';
@@ -151,7 +152,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
     }
   }
 
-  function signOut() {
+  const signOut = useCallback(() => {
     eventsRequest.current?.abort();
     eventsRequest.current = null;
     cognitoAdminAuth.signOut();
@@ -161,7 +162,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
     setSessionEvents([]);
     setSelectedId(null);
     setView('signed-out');
-  }
+  }, []);
 
   const roles = cognitoAdminAuth.getHumanRoles();
   const shellRoles = roles.length > 0 ? roles : ['ADMIN' as const];
@@ -206,6 +207,8 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
             </p>
           </div>
         </section>
+
+        {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
 
         {view === 'ready' && (
           <div className="audit-filter-row" role="search" aria-label="Filtrar encuentros">

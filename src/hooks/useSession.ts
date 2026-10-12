@@ -5,7 +5,7 @@ import type { Protocolo } from '@/types';
 import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
 import { CameraLinkError, ContinuityCameraService } from '@/lib/ContinuityCameraService';
 import { ContinuityBrowserCameraService, stopTracks } from '@/lib/ContinuityBrowserCameraService';
-import { cognitoAdminAuth } from '@/lib/adminAuth';
+import { stationApi } from '@/lib/StationApi';
 
 const API_URL = RuntimeEndpointConfig.apiBaseUrl();
 
@@ -40,34 +40,15 @@ export function useSession() {
   }, [startSession, connect]);
 
   const start = useCallback(
-    async (protocolo: Protocolo) => {
+    async (protocolo: Protocolo, requestId?: string) => {
       try {
         const cloudMode = RuntimeEndpointConfig.isCloudMode();
-        const humanToken = cloudMode ? cognitoAdminAuth.getAccessToken() : null;
-        if (cloudMode && !humanToken) throw new Error('Inicia sesión como OPERADOR para abrir una sesión.');
 
         if (cloudMode) {
-          const response = await fetch(`${API_URL}/api/v1/session`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${humanToken}`,
-            },
-            body: JSON.stringify({ protocolo, producerProtocolVersion: '2' }),
-            cache: 'no-store',
-          });
-          if (!response.ok) {
-            throw new Error(response.status === 403
-              ? 'La cuenta Cognito requiere el grupo OPERATOR o ADMIN.'
-              : `No se pudo crear la sesión: HTTP ${response.status}`);
-          }
-          const data = await response.json() as {
-            sessionId: string; protocolo: Protocolo; accessToken?: string; pairingCode?: string;
-          };
-          if (!data.sessionId || !data.accessToken) throw new Error('Respuesta de sesión cloud inválida.');
-          startSession(data.sessionId, data.protocolo, data.accessToken, true);
-          connect(data.sessionId, data.accessToken);
-          return data.pairingCode ?? null;
+          const data = await stationApi.createSession(protocolo, requestId ?? crypto.randomUUID());
+          startSession(data.sessionId, data.protocolo, null, true);
+          connect(data.sessionId, null);
+          return null;
         }
 
         const activeResponse = await fetch(`${API_URL}/api/v1/session/active`);
@@ -129,6 +110,11 @@ export function useSession() {
     connect(paired.sessionId, paired.accessToken);
   }, [startSession, connect]);
 
+  const resume = useCallback((session: { sessionId: string; protocolo: Protocolo }) => {
+    startSession(session.sessionId, session.protocolo, null, true);
+    connect(session.sessionId, null);
+  }, [startSession, connect]);
+
   const stop = useCallback(async () => {
     if (!sessionId) return;
 
@@ -139,11 +125,15 @@ export function useSession() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/session/${sessionId}`, {
-        method: 'DELETE',
-        headers: accessToken ? { 'X-Session-Token': accessToken } : {},
-      });
-      if (!response.ok) throw new Error(`No se pudo detener la sesión: HTTP ${response.status}`);
+      if (RuntimeEndpointConfig.isCloudMode()) {
+        await stationApi.stopSession(sessionId);
+      } else {
+        const response = await fetch(`${API_URL}/api/v1/session/${sessionId}`, {
+          method: 'DELETE',
+          headers: accessToken ? { 'X-Session-Token': accessToken } : {},
+        });
+        if (!response.ok) throw new Error(`No se pudo detener la sesión: HTTP ${response.status}`);
+      }
       disconnect();
       endSession();
     } catch (error) {
@@ -154,9 +144,6 @@ export function useSession() {
 
   const linkCloudCamera = useCallback(async (signal: AbortSignal) => {
     if (!RuntimeEndpointConfig.isCloudMode()) throw new Error('La captura web solo está disponible en modo cloud.');
-    if (!cognitoAdminAuth.getAccessToken()) {
-      throw new Error('Inicia sesión como OPERADOR antes de abrir la cámara.');
-    }
     const stream = await ContinuityBrowserCameraService.open();
     if (signal.aborted) {
       stopTracks(stream);
@@ -164,9 +151,9 @@ export function useSession() {
     }
     return {
       stream,
-      message: 'Vista previa local abierta. Sin relay WebRTC, el video no llega a la PC RTX ni se evalúan pasos.',
+      message: 'Vista previa local abierta. El enlace WebRTC con el PC RTX requiere una sesión activa.',
     };
   }, []);
 
-  return { start, join, stop, linkCamera, linkCloudCamera, isActive, isOwner };
+  return { start, join, resume, stop, linkCamera, linkCloudCamera, isActive, isOwner };
 }

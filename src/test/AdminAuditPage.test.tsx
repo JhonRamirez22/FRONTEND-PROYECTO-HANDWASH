@@ -17,6 +17,9 @@ const { auth, api } = vi.hoisted(() => ({
     events: vi.fn(),
     accessEvents: vi.fn(),
     failedAttempts: vi.fn(),
+    stations: vi.fn(),
+    issueStationCode: vi.fn(),
+    revokeStation: vi.fn(),
   },
 }));
 
@@ -27,6 +30,9 @@ vi.mock('../lib/AdminAuditApi', () => ({
     events = api.events;
     accessEvents = api.accessEvents;
     failedAttempts = api.failedAttempts;
+    stations = api.stations;
+    issueStationCode = api.issueStationCode;
+    revokeStation = api.revokeStation;
   },
 }));
 
@@ -60,6 +66,7 @@ describe('AdminAuditPage', () => {
       durationMs: 12_000,
       createdAtEpochMs: 1_800_000_000_000,
     }]);
+    api.stations.mockResolvedValue([]);
   });
 
   it('renders metadata-only failed attempts in the read-only admin console', async () => {

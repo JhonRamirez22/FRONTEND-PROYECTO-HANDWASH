@@ -7,6 +7,7 @@ import type { DeploymentStatus } from '@/lib/DeploymentStatusService';
 import { ProcessingPath } from './ProcessingPath';
 import { useSession } from '@/hooks/useSession';
 import { stopTracks } from '@/lib/ContinuityBrowserCameraService';
+import type { CameraRelayState, ProducerTelemetry } from '@/lib/BrowserRtcCameraRelay';
 
 type StreamStatus = 'idle' | 'connecting' | 'live' | 'offline';
 type CameraHealth = 'connected' | 'reconnecting' | 'unknown';
@@ -43,9 +44,14 @@ const CAMERA_HEALTH_POLL_MS = 1_500;
 interface LiveCameraFeedProps {
   backendStatus?: DeploymentStatus;
   backendLoading?: boolean;
+  browserStream?: MediaStream | null;
+  onToggleBrowserCamera?: () => Promise<boolean>;
+  relayStatus?: CameraRelayState | 'idle';
+  producerTelemetry?: ProducerTelemetry | null;
 }
 
-export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCameraFeedProps) {
+export function LiveCameraFeed({ backendStatus, backendLoading = true, browserStream: controlledStream,
+  onToggleBrowserCamera, relayStatus = 'idle', producerTelemetry = null }: LiveCameraFeedProps) {
   const [status, setStatus] = useState<StreamStatus>('idle');
   const [cameraHealth, setCameraHealth] = useState<CameraHealth>('unknown');
   const [handPresence, setHandPresence] = useState<HandPresence | null>(null);
@@ -53,7 +59,8 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
   const [linking, setLinking] = useState(false);
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState(false);
-  const [browserStream, setBrowserStream] = useState<MediaStream | null>(null);
+  const [localBrowserStream, setLocalBrowserStream] = useState<MediaStream | null>(null);
+  const browserStream = controlledStream === undefined ? localBrowserStream : controlledStream;
   const linkRequest = useRef<AbortController | null>(null);
   const videoElement = useRef<HTMLVideoElement | null>(null);
   const cloudMode = RuntimeEndpointConfig.isCloudMode();
@@ -68,14 +75,6 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
   const setCameraHandsVisible = useSessionStore((state) => state.setCameraHandsVisible);
 
   const linkIphone = async () => {
-    if (cloudMode && browserStream) {
-      stopTracks(browserStream);
-      setBrowserStream(null);
-      setStatus('idle');
-      setLinkMessage('Vista previa local desconectada.');
-      setLinkError(false);
-      return;
-    }
     if (linkRequest.current) return;
     const controller = new AbortController();
     linkRequest.current = controller;
@@ -84,14 +83,30 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
     setLinkMessage('Buscando cámara de Continuidad…');
     try {
       if (cloudMode) {
-        const result = await linkCloudCamera(controller.signal);
-        if (controller.signal.aborted) {
-          stopTracks(result.stream);
-          return;
+        if (onToggleBrowserCamera) {
+          const opened = await onToggleBrowserCamera();
+          setStatus(opened ? 'connecting' : 'idle');
+          setLinkMessage(opened
+            ? isActive ? 'Cámara abierta; negociando WebRTC con el PC RTX.'
+              : 'Vista previa lista. Inicia detección para enlazarla al PC RTX.'
+            : 'Cámara desconectada.');
+          setLinkError(false);
+        } else if (browserStream) {
+          stopTracks(browserStream);
+          setLocalBrowserStream(null);
+          setStatus('idle');
+          setLinkMessage('Vista previa local desconectada.');
+          setLinkError(false);
+        } else {
+          const result = await linkCloudCamera(controller.signal);
+          if (controller.signal.aborted) {
+            stopTracks(result.stream);
+            return;
+          }
+          setLocalBrowserStream(result.stream);
+          setStatus('connecting');
+          setLinkMessage(result.message);
         }
-        setBrowserStream(result.stream);
-        setStatus('connecting');
-        setLinkMessage(result.message);
       } else {
         const message = await linkCamera(controller.signal);
         if (controller.signal.aborted) return;
@@ -131,10 +146,12 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
   useEffect(() => {
     if (cloudMode || isActive || !browserStream) return;
     stopTracks(browserStream);
-    setBrowserStream(null);
+    setLocalBrowserStream(null);
   }, [isActive, browserStream, cloudMode]);
 
-  useEffect(() => () => stopTracks(browserStream), [browserStream]);
+  useEffect(() => () => {
+    if (controlledStream === undefined) stopTracks(localBrowserStream);
+  }, [controlledStream, localBrowserStream]);
 
   useEffect(() => {
     setStatus(browserStream ? 'live' : sessionId ? 'connecting' : 'idle');
@@ -272,7 +289,13 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
             : 'Selecciona la cámara principal del iPhone desde este navegador.')}
         </span>
         {cloudMode && <span className="camera-limit-note">
-          Vista solo local · sin relay WebRTC ni inferencia RTX
+          {producerTelemetry?.activeModelsReady && producerTelemetry.javaTransport === 'connected'
+            ? `YOLO en RTX · ${producerTelemetry.inferenceFps.toFixed(1)} fps · observaciones enviadas a Java; pasos confirmados abajo`
+            : relayStatus === 'connected' ? 'Video WebRTC conectado al PC · esperando estado de inferencia'
+              : relayStatus === 'failed' ? 'No se conectó el PC RTX; revisa que el productor esté activo en la misma red'
+                : browserStream ? isActive ? 'Cámara lista · esperando conexión WebRTC con el PC RTX'
+                  : 'Vista previa local · inicia la sesión para enviar video al PC RTX'
+                  : 'Sin grabación · el PC RTX debe estar activo para recibir video'}
         </span>}
       </div>
 
@@ -280,6 +303,8 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
         previewReady={Boolean(browserStream)}
         backendStatus={backendStatus}
         backendLoading={backendLoading}
+        relayStatus={relayStatus}
+        producerTelemetry={producerTelemetry}
       />}
 
       <div className="camera-stage">
@@ -289,7 +314,7 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
             autoPlay
             playsInline
             muted
-            aria-label="Vista previa local de Continuity Camera; no se transmite al servidor"
+            aria-label="Vista de Continuity Camera; WebRTC transmite video directo al PC RTX cuando el enlace está activo"
             className={`camera-video ${browserStream ? 'is-visible' : ''}`}
             onLoadedMetadata={() => setStatus('live')}
             onError={() => { setStatus('offline'); setLinkError(true); }}
@@ -328,9 +353,9 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true }: LiveCam
 
         <div className="camera-caption">
           {isActive
-            ? currentStep ? `Movimiento actual: ${STEP_LABELS[currentStep as keyof typeof STEP_LABELS] ?? currentStep}` : retries > 0 ? `Intento reiniciado · vuelve a empezar por ${mode === 'PROTOCOLO_OMS' ? 'mojar las manos' : 'Palmas'}` : 'Sesión activa · esperando el primer paso'
+            ? currentStep ? `Movimiento actual: ${STEP_LABELS[currentStep as keyof typeof STEP_LABELS] ?? currentStep}` : retries > 0 ? `Intento reiniciado · vuelve a empezar por ${mode === 'PROTOCOLO_OMS' ? 'mojar las manos' : 'Palmas'}` : cloudMode && relayStatus !== 'connected' ? 'Sesión Java activa · esperando cámara y PC RTX' : 'Sesión activa · esperando el primer paso'
             : summary ? 'Sesión finalizada · consulta el resumen'
-              : cloudMode ? 'La vista local no se transmite ni evalúa hasta enlazar el productor RTX'
+              : cloudMode ? browserStream ? 'Vista previa local · el enlace WebRTC se activa al iniciar la sesión' : 'Enlaza el iPhone para comenzar'
                 : 'Enlaza el iPhone para evaluar los movimientos'}
           {isActive && mode !== 'PROTOCOLO_OMS' && handPresenceLabel && (
             <p className="mt-1 text-white/80" role="status" aria-live="polite">{handPresenceLabel}</p>

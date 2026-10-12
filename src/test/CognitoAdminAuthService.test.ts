@@ -38,18 +38,28 @@ describe('CognitoAdminAuthService', () => {
     },
   );
 
-  it('starts authorization-code PKCE and stores only the short-lived transaction', async () => {
+  it('clears the prior Cognito session before starting PKCE and keeps tokens out of storage', async () => {
     const storage = new MemoryStorage();
     const redirect = vi.fn();
     const service = new CognitoAdminAuthService(config, storage, vi.fn(), redirect);
 
     await service.beginSignIn();
 
-    const authorization = new URL(redirect.mock.calls[0][0]);
+    const logout = new URL(redirect.mock.calls[0][0]);
+    expect(logout.pathname).toBe('/logout');
+    expect(logout.searchParams.get('logout_uri')).toBe(config.redirectUri);
+    expect(CognitoAdminAuthService.hasPendingLogout(storage)).toBe(true);
+    expect(CognitoAdminAuthService.hasPendingRedirect(storage)).toBe(false);
+
+    await service.continueSignInAfterLogout();
+    const authorization = new URL(redirect.mock.calls[1][0]);
     expect(authorization.pathname).toBe('/oauth2/authorize');
     expect(authorization.searchParams.get('response_type')).toBe('code');
+    expect(authorization.searchParams.has('prompt')).toBe(false);
     expect(authorization.searchParams.get('code_challenge_method')).toBe('S256');
     expect(authorization.searchParams.get('code_challenge')).toMatch(/^[\w-]{43}$/);
+    expect(CognitoAdminAuthService.hasPendingLogout(storage)).toBe(false);
+    expect(CognitoAdminAuthService.hasPendingRedirect(storage)).toBe(true);
     expect(storage.length).toBe(1);
     expect(storage.getItem('handwash.admin.oidc.transaction')).not.toContain('access_token');
     expect(CognitoAdminAuthService.pendingLandingHash(storage)).toBe('#/admin');
@@ -65,6 +75,7 @@ describe('CognitoAdminAuthService', () => {
     } as Response);
     const service = new CognitoAdminAuthService(config, storage, fetcher, redirect, cleanCallback);
     await service.beginSignIn('#/');
+    await service.continueSignInAfterLogout();
     const transaction = JSON.parse(storage.getItem('handwash.admin.oidc.transaction')!) as { state: string };
 
     expect(CognitoAdminAuthService.pendingLandingHash(storage)).toBe('#/');
@@ -77,6 +88,7 @@ describe('CognitoAdminAuthService', () => {
     const fetcher = vi.fn();
     const service = new CognitoAdminAuthService(config, storage, fetcher, vi.fn(), vi.fn());
     await service.beginSignIn();
+    await service.continueSignInAfterLogout();
 
     await expect(service.completeRedirect(
       `${window.location.origin}/?code=authorization-code&state=wrong`,
@@ -92,6 +104,7 @@ describe('CognitoAdminAuthService', () => {
     const fetcher = vi.fn();
     const service = new CognitoAdminAuthService(config, storage, fetcher, vi.fn(), vi.fn());
     await service.beginSignIn();
+    await service.continueSignInAfterLogout();
 
     await expect(service.completeRedirect(
       `${window.location.origin}/?error=access_denied&state=wrong`,
@@ -109,16 +122,19 @@ describe('CognitoAdminAuthService', () => {
     expect(service.isConfigured()).toBe(false);
   });
 
-  it('clears the in-memory token and redirects through Cognito managed logout', () => {
+  it('clears transient auth state and redirects through Cognito managed logout', async () => {
+    const storage = new MemoryStorage();
     const redirect = vi.fn();
-    const service = new CognitoAdminAuthService(config, new MemoryStorage(), vi.fn(), redirect);
+    const service = new CognitoAdminAuthService(config, storage, vi.fn(), redirect);
+    await service.beginSignIn();
     service.signOut();
 
-    const logout = new URL(redirect.mock.calls[0][0]);
+    const logout = new URL(redirect.mock.calls[redirect.mock.calls.length - 1][0]);
     expect(logout.pathname).toBe('/logout');
     expect(logout.searchParams.get('client_id')).toBe(config.clientId);
     expect(logout.searchParams.get('logout_uri')).toBe(config.redirectUri);
     expect(service.getAccessToken()).toBeNull();
+    expect(storage.length).toBe(0);
   });
 
   it('keeps the access token in memory only and clears it on expiry/logout', async () => {
@@ -128,6 +144,7 @@ describe('CognitoAdminAuthService', () => {
       json: async () => ({ access_token: 'access-secret', token_type: 'Bearer', expires_in: 3600 }),
     } as Response), vi.fn(), vi.fn());
     await service.beginSignIn();
+    await service.continueSignInAfterLogout();
     const transaction = JSON.parse(storage.getItem('handwash.admin.oidc.transaction')!) as { state: string };
 
     await service.completeRedirect(
@@ -138,5 +155,48 @@ describe('CognitoAdminAuthService', () => {
     expect(storage.length).toBe(0);
     service.clear();
     expect(service.getAccessToken()).toBeNull();
+  });
+
+  it('does not accept an authorization callback before the logout stage is completed', async () => {
+    const storage = new MemoryStorage();
+    const fetcher = vi.fn();
+    const service = new CognitoAdminAuthService(config, storage, fetcher, vi.fn(), vi.fn());
+    await service.beginSignIn();
+    const transaction = JSON.parse(storage.getItem('handwash.admin.oidc.transaction')!) as { state: string };
+
+    await expect(service.completeRedirect(
+      `${window.location.origin}/?code=authorization-code&state=${transaction.state}`,
+    )).rejects.toThrow('no coincide');
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(storage.length).toBe(0);
+  });
+
+  it('discards an expired logout transaction instead of reusing it', async () => {
+    const storage = new MemoryStorage();
+    const service = new CognitoAdminAuthService(config, storage, vi.fn(), vi.fn());
+    storage.setItem('handwash.admin.oidc.transaction', JSON.stringify({
+      verifier: 'verifier', state: 'state', createdAt: Date.now() - 5 * 60_000 - 1,
+      landingHash: '#/admin', stage: 'logout',
+    }));
+
+    await expect(service.continueSignInAfterLogout()).rejects.toThrow('expiró');
+    expect(storage.length).toBe(0);
+  });
+
+  it('rejects a callback transaction dated in the future', async () => {
+    const storage = new MemoryStorage();
+    const fetcher = vi.fn();
+    const service = new CognitoAdminAuthService(config, storage, fetcher, vi.fn(), vi.fn());
+    storage.setItem('handwash.admin.oidc.transaction', JSON.stringify({
+      verifier: 'verifier', state: 'state', createdAt: Date.now() + 60_000,
+      landingHash: '#/admin', stage: 'authorize',
+    }));
+
+    await expect(service.completeRedirect(
+      `${window.location.origin}/?code=authorization-code&state=state`,
+    )).rejects.toThrow('no coincide');
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(storage.length).toBe(0);
   });
 });

@@ -29,4 +29,17 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Estación en vivo' })).not.toBeInTheDocument();
     expect(screen.getByText('Entorno no verificado')).toBeInTheDocument();
   });
+
+  it('renders the public station without navigation or visible human roles', () => {
+    render(
+      <AppShell role="OPERATOR" roles={[]} active="station" publicStation>
+        <h1>Puesto público</h1>
+      </AppShell>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Puesto público' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'HandWash, puesto' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Operador|Administrador|Auditoría/)).not.toBeInTheDocument();
+  });
 });

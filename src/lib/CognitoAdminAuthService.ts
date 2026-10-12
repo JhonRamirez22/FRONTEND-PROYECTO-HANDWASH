@@ -18,6 +18,7 @@ interface AuthTransaction {
   state: string;
   createdAt: number;
   landingHash: '#/' | '#/admin';
+  stage: 'logout' | 'authorize';
 }
 
 const TRANSACTION_KEY = 'handwash.admin.oidc.transaction';
@@ -60,13 +61,38 @@ export class CognitoAdminAuthService {
     }
     const verifier = randomBase64Url(32);
     const state = randomBase64Url(24);
-    const challenge = await sha256Base64Url(verifier);
-    const transaction: AuthTransaction = { verifier, state, createdAt: Date.now(), landingHash };
+    const transaction: AuthTransaction = {
+      verifier, state, createdAt: Date.now(), landingHash, stage: 'logout',
+    };
     try {
       this.storage.setItem(TRANSACTION_KEY, JSON.stringify(transaction));
     } catch {
       throw new Error('El navegador no permite almacenamiento temporal seguro para iniciar sesión.');
     }
+
+    const logout = new URL('/logout', this.config.domain);
+    logout.search = new URLSearchParams({
+      client_id: this.config.clientId,
+      logout_uri: this.config.redirectUri,
+    }).toString();
+    this.redirect(logout.toString());
+  }
+
+  async continueSignInAfterLogout(): Promise<void> {
+    const transaction = this.readTransaction();
+    const age = transaction ? Date.now() - transaction.createdAt : Number.POSITIVE_INFINITY;
+    if (!this.isConfigured() || !transaction || transaction.stage !== 'logout'
+      || age < 0 || age > 5 * 60_000) {
+      this.storage.removeItem(TRANSACTION_KEY);
+      throw new Error('La sesión ADMIN expiró; vuelve a iniciar sesión.');
+    }
+    if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
+      this.storage.removeItem(TRANSACTION_KEY);
+      throw new Error('PKCE requiere un navegador moderno en HTTPS o localhost.');
+    }
+    const challenge = await sha256Base64Url(transaction.verifier);
+    transaction.stage = 'authorize';
+    this.storage.setItem(TRANSACTION_KEY, JSON.stringify(transaction));
 
     const authorize = new URL('/oauth2/authorize', this.config.domain);
     authorize.search = new URLSearchParams({
@@ -76,7 +102,7 @@ export class CognitoAdminAuthService {
       redirect_uri: this.config.redirectUri,
       code_challenge_method: 'S256',
       code_challenge: challenge,
-      state,
+      state: transaction.state,
     }).toString();
     this.redirect(authorize.toString());
   }
@@ -89,8 +115,9 @@ export class CognitoAdminAuthService {
     if (!code && !params.has('error')) return false;
 
     const transaction = this.readTransaction();
-    if (!transaction || !returnedState || returnedState !== transaction.state
-      || Date.now() - transaction.createdAt > 5 * 60_000) {
+    const transactionAge = transaction ? Date.now() - transaction.createdAt : Number.POSITIVE_INFINITY;
+    if (!transaction || transaction.stage !== 'authorize' || !returnedState || returnedState !== transaction.state
+      || transactionAge < 0 || transactionAge > 5 * 60_000) {
       this.storage.removeItem(TRANSACTION_KEY);
       this.cleanCallbackUrl(this.config.landingHash ?? '#/admin');
       throw new Error('La respuesta de inicio de sesión expiró o no coincide; vuelve a intentarlo.');
@@ -164,14 +191,32 @@ export class CognitoAdminAuthService {
       if (!raw) return false;
       const value = JSON.parse(raw) as Partial<AuthTransaction>;
       return typeof value.verifier === 'string' && typeof value.state === 'string'
-        && typeof value.createdAt === 'number';
+        && typeof value.createdAt === 'number' && value.stage === 'authorize';
     } catch {
       return false;
     }
   }
 
+  static hasPendingLogout(storage: Storage = window.sessionStorage): boolean {
+    try {
+      const raw = storage.getItem(TRANSACTION_KEY);
+      if (!raw) return false;
+      const value = JSON.parse(raw) as Partial<AuthTransaction>;
+      return typeof value.verifier === 'string' && typeof value.state === 'string'
+        && typeof value.createdAt === 'number' && value.stage === 'logout'
+        && Date.now() - value.createdAt >= 0 && Date.now() - value.createdAt <= 5 * 60_000;
+    } catch {
+      return false;
+    }
+  }
+
+  clearPendingSignIn(): void {
+    this.storage.removeItem(TRANSACTION_KEY);
+  }
+
   signOut(): void {
     this.clear();
+    this.storage.removeItem(TRANSACTION_KEY);
     if (!this.isConfigured()) return;
     const logout = new URL('/logout', this.config.domain);
     logout.search = new URLSearchParams({
@@ -188,6 +233,7 @@ export class CognitoAdminAuthService {
       const value = JSON.parse(raw) as Partial<AuthTransaction>;
       if (typeof value.verifier !== 'string' || typeof value.state !== 'string'
         || typeof value.createdAt !== 'number'
+        || value.stage !== 'logout' && value.stage !== 'authorize'
         || value.landingHash !== '#/' && value.landingHash !== '#/admin') return null;
       return value as AuthTransaction;
     } catch {

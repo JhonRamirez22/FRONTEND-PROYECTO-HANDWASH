@@ -33,8 +33,7 @@ export function CloudAccessPage({ message }: CloudAccessPageProps) {
   async function signIn() {
     setError(null);
     try {
-      const requestedRoute = window.location.hash.startsWith('#/admin') ? '#/admin' : '#/';
-      await cognitoAdminAuth.beginSignIn(requestedRoute);
+      await cognitoAdminAuth.beginSignIn('#/admin');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No fue posible iniciar sesión.');
     }
@@ -48,8 +47,8 @@ export function CloudAccessPage({ message }: CloudAccessPageProps) {
           <span><strong>HandWash</strong><small>Estación de verificación</small></span>
         </a>
         <div className="access-copy">
-          <h1 id="access-title">Acceso seguro</h1>
-          <p>Tu grupo de Cognito determina si abres la estación en vivo o la consola de auditoría.</p>
+          <h1 id="access-title">Consola ADMIN</h1>
+          <p>Acceso reservado para administración y auditoría. El puesto de lavado no requiere inicio de sesión.</p>
         </div>
         <div className="access-status" role="status" aria-live="polite">
           <span className={`status-indicator ${loading ? 'is-pending' : status.mode === 'UNVERIFIED' ? 'is-warning' : 'is-ready'}`} />
@@ -73,19 +72,19 @@ export function CloudAccessPage({ message }: CloudAccessPageProps) {
         <button className="button-primary access-submit" type="button" onClick={() => void signIn()}
           disabled={!accessReady}
           aria-describedby={!accessReady ? 'access-setup-note' : undefined}>
-          <span>Iniciar sesión con Cognito</span><ArrowRight size={17} />
+          <span>Iniciar sesión como ADMIN</span><ArrowRight size={17} />
         </button>
         <div className="access-note"><ShieldCheck size={16} /><span>La autorización final siempre la valida el backend Java.</span></div>
       </section>
       <aside className="access-aside">
         <div className="aside-mark"><img src="/handwash-logo.png" alt="" /></div>
-        <h2>Lo que el sistema sí puede confirmar</h2>
-        <p>La cámara local, las propuestas del modelo y los eventos confirmados por Java se muestran como estados distintos.</p>
-          <div className="access-limits">
+        <h2>Control administrativo separado del puesto</h2>
+        <p>Cada acceso cierra la sesión previa de Cognito y exige volver a autenticarte. Usa la cuenta Cognito y su MFA; Microsoft Authenticator es compatible con el código TOTP. HandWash mantiene los tokens solo en memoria.</p>
+        <div className="access-limits">
           <span><i className="legend-dot dot-blue" />Cámara: vista previa local</span>
           <span><i className="legend-dot dot-amber" />RTX / YOLO: aún sin conectar</span>
           <span><i className="legend-dot dot-gray" />Datos de imagen: no se almacenan</span>
-          </div>
+        </div>
       </aside>
     </main>
   );

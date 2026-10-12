@@ -108,6 +108,12 @@
   min-height: 100dvh;
 }
 
+.app-frame.is-public-station { grid-template-columns: minmax(0, 1fr); }
+.is-public-station .app-topbar { min-height: 72px; }
+.public-brand { text-decoration: none; }
+.public-brand strong { color: var(--hw-petroleum); }
+.public-brand small { color: var(--hw-muted); }
+
 .app-sidebar {
   position: sticky;
   top: 0;
@@ -466,6 +472,18 @@
 .access-aside > p:not(.section-kicker) { max-width: 48ch; color: #d2e1e0; font-size: 14px; line-height: 1.65; }
 .access-limits { display: grid; gap: 0; margin-top: 22px; padding-top: 14px; border-top: 1px solid rgb(255 255 255 / 21%); }
 .access-limits span { display: flex; align-items: center; gap: 10px; min-height: 40px; color: #e5efee; font-size: 12px; }
+.station-enrollment-form { display: grid; gap: 8px; margin-top: 23px; }
+.station-enrollment-form label, .station-code-form label { color: var(--hw-petroleum); font-size: 12px; font-weight: 650; }
+.station-enrollment-form input, .station-code-form input { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #a3b8b5; border-radius: 9px; background: #fff; color: var(--hw-ink); font-size: 13px; }
+.station-enrollment-form > p { margin: 0 0 5px; color: var(--hw-muted); font-size: 11px; line-height: 1.5; }
+.station-enrollment-form .button-primary { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.station-enrollment-page .access-aside .section-kicker { color: #c4d9d8; }
+.station-resume-error { padding: 24px; text-align: center; }
+.station-resume-error > div { width: min(100%, 540px); padding: 26px; border: 1px solid var(--hw-border); border-radius: var(--hw-radius-surface); background: #fff; box-shadow: var(--hw-shadow-panel); }
+.station-resume-error svg { color: var(--hw-warning-ink); }
+.station-resume-error h1 { margin: 12px 0 8px; color: var(--hw-petroleum); font-size: 22px; }
+.station-resume-error p { color: var(--hw-muted); font-size: 13px; line-height: 1.6; }
+.station-resume-error .button-primary { min-height: 44px; padding: 0 14px; }
 .legend-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
 .dot-blue { background: var(--hw-turquoise); }
 .dot-amber { background: #e1b85d; }
@@ -505,6 +523,20 @@
 .admin-sign-in { margin-top: 22px; }
 .admin-count { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; min-height: 28px; padding: 0 9px; border-radius: var(--hw-radius-chip); background: var(--hw-surface-soft); color: var(--hw-petroleum); font-size: 11px; font-weight: 650; }
 .admin-data-section { min-width: 0; overflow: hidden; border: 1px solid var(--hw-border); border-radius: var(--hw-radius-surface); background: #fff; box-shadow: var(--hw-shadow-panel); }
+.station-code-form { display: flex; align-items: end; gap: 12px; padding: 15px 18px; border-bottom: 1px solid #edf2f0; }
+.station-code-form > div { display: grid; gap: 5px; width: min(100%, 360px); }
+.station-code-form .button-primary, .station-registry .button-quiet { min-height: 44px; }
+.station-issued-code { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 14px; margin: 14px 18px; padding: 13px; border: 1px solid #b8d8d3; border-radius: 10px; background: #f3faf8; }
+.station-issued-code > div { display: grid; gap: 2px; }
+.station-issued-code strong { color: var(--hw-petroleum); font-size: 12px; }
+.station-issued-code span { color: var(--hw-muted); font-size: 11px; }
+.station-issued-code code { grid-column: 1; padding: 9px 10px; border: 1px solid var(--hw-border); border-radius: 7px; background: #fff; color: var(--hw-ink); font-size: 12px; }
+.station-issued-code button { grid-column: 2; grid-row: 1 / span 2; }
+.station-admin-notice { margin: 10px 18px; color: var(--hw-success-ink); font-size: 12px; }
+.station-registry-table { min-width: 760px; }
+.station-registry-table td:first-child { display: grid; gap: 4px; }
+.station-id { color: var(--hw-muted); font-size: 10px; }
+.station-revoke-button { color: var(--hw-danger-ink); }
 .admin-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 11px 18px; border-bottom: 1px solid #e5eeeb; }
 .admin-section-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .admin-section-title svg { color: var(--hw-action); }
@@ -575,6 +607,7 @@
 
 @media (max-width: 560px) {
   .app-topbar { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .is-public-station .app-topbar { align-items: center; }
   .topbar-actions { width: 100%; justify-content: space-between; }
   .service-status { flex-wrap: wrap; }
   .page-heading { align-items: flex-start; flex-direction: column; gap: 12px; margin-bottom: 17px; }
@@ -596,6 +629,10 @@
   .app-footer { flex-direction: column; gap: 5px; }
   .access-page { display: flex; width: 100%; max-width: 100%; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 14px; padding: 14px; }
   .access-panel { align-self: center; width: 100%; max-width: 510px; min-width: 0; padding: 22px; }
+  .station-code-form { align-items: stretch; flex-direction: column; }
+  .station-code-form > div { width: 100%; }
+  .station-issued-code { grid-template-columns: minmax(0, 1fr); }
+  .station-issued-code code, .station-issued-code button { grid-column: 1; grid-row: auto; }
   .access-brand { margin-bottom: 30px; }
   .access-aside { display: flex; width: 100%; padding: 22px; border-radius: 14px; }
   .aside-mark { width: 48px; height: 48px; margin-bottom: 16px; border-radius: 11px; }

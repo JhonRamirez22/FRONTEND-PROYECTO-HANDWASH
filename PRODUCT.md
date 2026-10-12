@@ -12,8 +12,8 @@ React 18, TypeScript, Vite and Zustand (reused from the existing frontend). Depl
 
 ## Users
 
-- OPERADOR: opens and monitors a handwashing session from the Mac browser.
-- ADMIN: reviews audit records and access events; cannot alter past decisions.
+- Puesto público: a fixed, enrolled station opens and monitors a session without a human account.
+- ADMIN: signs in through Cognito/MFA at the unlisted `/#/admin` route, manages station credentials and reviews audit; cannot alter past decisions.
 - RTX producer: a separate machine identity, not a human UI role; integration is a later phase.
 
 ## Product Purpose
@@ -26,7 +26,7 @@ The UI distinguishes a locally visible camera preview, a producer connection, a 
 
 ## Operating Context
 
-The operator uses the Mac browser over HTTPS and may open Continuity Camera. Human login uses Cognito Authorization Code + PKCE. The deployed Java API is `https://d2pp4cum59aa17.cloudfront.net`. Initial navigation: OPERADOR to the live station; ADMIN to audit.
+The public kiosk uses the Mac browser over HTTPS and may open Continuity Camera after a click. A station is enrolled once using a one-time code from ADMIN; the credential is held in an HttpOnly cookie by the same-origin Vercel BFF. Cognito Authorization Code + PKCE is restricted to `/#/admin`. The deployed Java API is `https://d2pp4cum59aa17.cloudfront.net`.
 
 ## Capabilities and Constraints
 
@@ -35,13 +35,14 @@ The operator uses the Mac browser over HTTPS and may open Continuity Camera. Hum
 - Continuity Camera currently has local browser preview only. WebRTC to the RTX PC and YOLO inference are not connected; the UI must say so and never simulate them.
 - Admin audit API is read-only. No photos or video are stored or sent to AWS.
 - No iPhone app, patient-identification features, clinical approval or complete OMS verification.
-- Human Cognito users, redirect/callback settings and frontend origin are not yet verified for the new deployment.
+- Cognito ADMIN MFA, callback/logout URLs, Vercel BFF environment variables and Java CORS must be verified against the production project before deployment.
+- Station provisioning is separate from public navigation; a route hash is not considered secret or an authorization boundary.
 
 ## Evidence on Hand
 
 - Existing React implementation: `/Users/jhon/Documents/YOLO/PROYECTO-HAND-WASH-YOLO/frontend` (source path to reuse; not the publishing repository).
 - Live API smoke checks: `/actuator/health` is `UP`; deployment status is non-clinical development.
-- No deployed RTX producer, WebRTC relay or frontend Vercel project is connected yet.
+- The source now includes direct browser-to-RTX WebRTC signaling and aggregate producer status. The deployed Vercel build and Windows RTX producer are not yet updated/connected or tested end to end.
 
 ## Product Principles
 

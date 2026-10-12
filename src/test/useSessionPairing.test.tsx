@@ -2,9 +2,8 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
 import { useSessionStore } from '../stores/sessionStore';
-import { cognitoAdminAuth } from '../lib/adminAuth';
 import { ContinuityBrowserCameraService } from '../lib/ContinuityBrowserCameraService';
-import { ContinuityBrowserCameraService } from '../lib/ContinuityBrowserCameraService';
+import { stationApi } from '../lib/StationApi';
 
 const socket = vi.hoisted(() => ({ connect: vi.fn(), disconnect: vi.fn() }));
 vi.mock('../hooks/useWebSocket', () => ({ useWebSocket: () => socket }));
@@ -27,32 +26,25 @@ describe('useSession pairing', () => {
       protocolo: null, isActive: false });
   });
 
-  it('creates a cloud session only with the Cognito operator access token', async () => {
+  it('creates a cloud session through the same-origin station BFF without a human token', async () => {
     vi.stubEnv('VITE_HANDWASH_CLOUD_MODE', 'true');
-    vi.spyOn(cognitoAdminAuth, 'getAccessToken').mockReturnValue('cognito-access-token');
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      sessionId: 'cloud-session', protocolo: 'DOMESTICO', pairingCode: 'ABCDE-FGHIJ',
-      accessToken: 'owner-capability',
-    }));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(stationApi, 'createSession').mockResolvedValue({
+      sessionId: 'cloud-session', protocolo: 'DOMESTICO',
+    });
     const { result } = renderHook(() => useSession());
 
     await act(async () => {
       await result.current.start('DOMESTICO');
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/session'), expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer cognito-access-token' }),
-      body: JSON.stringify({ protocolo: 'DOMESTICO', producerProtocolVersion: '2' }),
-    }));
+    expect(stationApi.createSession).toHaveBeenCalledWith('DOMESTICO', expect.any(String));
     expect(useSessionStore.getState().sessionId).toBe('cloud-session');
-    expect(socket.connect).toHaveBeenCalledWith('cloud-session', 'owner-capability');
+    expect(useSessionStore.getState().accessToken).toBeNull();
+    expect(socket.connect).toHaveBeenCalledWith('cloud-session', null);
   });
 
   it('opens the cloud camera preview without creating a session or exposing a pairing code', async () => {
     vi.stubEnv('VITE_HANDWASH_CLOUD_MODE', 'true');
-    vi.spyOn(cognitoAdminAuth, 'getAccessToken').mockReturnValue('cognito-access-token');
     const stream = { getTracks: vi.fn(() => []) } as unknown as MediaStream;
     vi.spyOn(ContinuityBrowserCameraService, 'open').mockResolvedValue(stream);
     const fetchMock = vi.fn();

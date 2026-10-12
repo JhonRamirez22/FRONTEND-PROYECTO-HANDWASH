@@ -12,6 +12,7 @@ describe('LiveCameraFeed session binding', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   beforeEach(() => {
@@ -28,6 +29,17 @@ describe('LiveCameraFeed session binding', () => {
       name: 'Video en vivo de las manos con las detecciones del modelo YOLO superpuestas',
     })).not.toBeInTheDocument()
   })
+
+  it('shows local preview separately from an active WebRTC producer link', async () => {
+    vi.stubEnv('VITE_HANDWASH_CLOUD_MODE', 'true');
+    const toggleCamera = vi.fn().mockResolvedValue(true);
+    render(<LiveCameraFeed browserStream={null} onToggleBrowserCamera={toggleCamera} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enlazar iPhone' }));
+
+    expect(await screen.findByText('Vista previa lista. Inicia detección para enlazarla al PC RTX.')).toBeInTheDocument();
+    expect(toggleCamera).toHaveBeenCalledTimes(1);
+  });
 
   it('links the current camera through authenticated Java without sending token in URL', async () => {
     const fetchMock = vi.fn().mockImplementation(async (url) => ({
