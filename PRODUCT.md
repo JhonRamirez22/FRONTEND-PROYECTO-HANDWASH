@@ -14,7 +14,7 @@ React 18, TypeScript, Vite and Zustand (reused from the existing frontend). Depl
 
 - Puesto público: a fixed, enrolled station opens and monitors a session without a human account.
 - ADMIN: signs in through Cognito/MFA at the unlisted `/#/admin` route, manages station credentials and reviews audit; cannot alter past decisions.
-- RTX producer: a separate machine identity, not a human UI role; integration is a later phase.
+- RTX producer: a separate machine identity, not a human UI role; producer source and browser WebRTC signaling are implemented, but the PC is not enrolled or connected.
 
 ## Product Purpose
 
@@ -32,17 +32,17 @@ The public kiosk uses the Mac browser over HTTPS and may open Continuity Camera 
 
 - Java alone authorizes roles and decides sequence, timing, infractions and summaries.
 - The backend currently reports `DEVELOPMENT` and `clinicalDecisionAllowed=false`.
-- Continuity Camera currently has local browser preview only. WebRTC to the RTX PC and YOLO inference are not connected; the UI must say so and never simulate them.
+- Continuity Camera has a local browser preview; deployed WebRTC code can connect it to an enrolled RTX producer, but no peer is currently connected and YOLO inference is unavailable.
 - Admin audit API is read-only. No photos or video are stored or sent to AWS.
 - No iPhone app, patient-identification features, clinical approval or complete OMS verification.
-- Cognito ADMIN MFA, callback/logout URLs, Vercel BFF environment variables and Java CORS must be verified against the production project before deployment.
+- Production BFF variables and exact-origin Java CORS are configured and smoke-tested. A real Cognito ADMIN/MFA login, station enrollment and RTX connection remain unverified.
 - Station provisioning is separate from public navigation; a route hash is not considered secret or an authorization boundary.
 
 ## Evidence on Hand
 
 - Existing React implementation: `/Users/jhon/Documents/YOLO/PROYECTO-HAND-WASH-YOLO/frontend` (source path to reuse; not the publishing repository).
 - Live API smoke checks: `/actuator/health` is `UP`; deployment status is non-clinical development.
-- The source now includes direct browser-to-RTX WebRTC signaling and aggregate producer status. The deployed Vercel build and Windows RTX producer are not yet updated/connected or tested end to end.
+- Production Vercel deploy `dpl_GkeVB4vGA1icJKd5zvzYzrxzGeVW` is READY and includes direct browser-to-RTX WebRTC signaling and aggregate producer status. The Windows RTX producer has not been installed; no end-to-end camera/inference test has run.
 
 ## Product Principles
 

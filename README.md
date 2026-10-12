@@ -10,7 +10,7 @@ React 18, TypeScript, Vite and Zustand. This repository contains the web client 
 - Vercel `/api/station/*` acts as a same-origin BFF. Station and session capabilities stay in `Secure`, `HttpOnly`, `SameSite=Strict` cookies and are never returned to browser JavaScript.
 - Only an enrolled station can create a cloud session. Java remains authoritative for authorization, sequence, timing, infractions and summaries.
 - The deployed backend currently reports `DEVELOPMENT` with `clinicalDecisionAllowed=false`.
-- Continuity preview is local to the browser. WebRTC to the RTX PC and YOLO inference are not connected; the UI must not imply otherwise.
+- Continuity preview is local until the enrolled station and RTX producer establish WebRTC. The signaling/WebRTC client is deployed, but no PC is connected yet; YOLO inference is therefore unavailable.
 - No photo or video is persisted or uploaded.
 
 ## Local development
@@ -39,8 +39,8 @@ HANDWASH_BACKEND_ORIGIN=https://d2pp4cum59aa17.cloudfront.net
 HANDWASH_PUBLIC_ORIGIN=https://frontend-proyecto-handwash.vercel.app
 ```
 
-Configure the exact callback/logout URL in Cognito and the exact Vercel origin for Java REST/WebSocket CORS. Preview domains are intentionally not allowed. The BFF rejects mutations from any other origin.
+Production has the exact Vercel origin in Java REST/WebSocket CORS and the BFF rejects mutations from any other origin. Preview domains are intentionally not allowed. ADMIN/MFA login has not yet been exercised end to end.
 
 ADMIN issues an enrollment code under **Puestos registrados**. It expires after 10 minutes and is single-use. The station redeems it once; daily use is just **Iniciar detección**. If revoked, the station must be enrolled again.
 
-The RTX producer uses a separate machine credential and the v2 contract. This browser app does not receive its client secret or a session token for the producer. The current source negotiates direct WebRTC to RTX and reports aggregate producer telemetry; the deployed Vercel build still needs this update, and no live RTX connection has been verified. No photo is saved; Java receives JSON only, never video.
+The RTX producer uses a separate machine credential and the v2 contract. This browser app does not receive its client secret or a session token for the producer. Production Vercel includes direct WebRTC signaling/client code and aggregate producer telemetry, but the station is not enrolled and no live RTX connection has been verified. No photo is saved; Java receives JSON only, never video.
