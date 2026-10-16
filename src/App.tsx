@@ -3,13 +3,14 @@ import { CircleAlert, LoaderCircle, ShieldX } from 'lucide-react';
 import { AdminAuditPage } from './components/AdminAuditPage';
 import { AppShell } from './components/AppShell';
 import { CloudAccessPage } from './components/CloudAccessPage';
+import { KioskScreen } from './components/KioskScreen';
+import { OperatorConsole } from './components/OperatorConsole';
 import { ConnectionStatusBadge } from './components/ConnectionStatusBadge';
 import { ControlPanel } from './components/ControlPanel';
 import { DeploymentNotice } from './components/DeploymentNotice';
 import { InfractionsLog } from './components/InfractionsLog';
 import { LiveCameraFeed } from './components/LiveCameraFeed';
 import { SessionSummary } from './components/SessionSummary';
-import { StationEnrollmentPage } from './components/StationEnrollmentPage';
 import { StepStepper } from './components/StepStepper';
 import { DeploymentStatusService } from './lib/DeploymentStatusService';
 import { BrowserRtcCameraRelay, type CameraRelayState, type ProducerTelemetry } from './lib/BrowserRtcCameraRelay';
@@ -17,7 +18,7 @@ import { cognitoAdminAuth } from './lib/adminAuth';
 import { CognitoAdminAuthService, type HumanRole } from './lib/CognitoAdminAuthService';
 import { ContinuityBrowserCameraService, stopTracks } from './lib/ContinuityBrowserCameraService';
 import { RuntimeEndpointConfig } from './lib/RuntimeEndpointConfig';
-import { stationApi, type ActiveStationSession } from './lib/StationApi';
+import type { ActiveStationSession } from './lib/StationApi';
 import { useSessionStore } from './stores/sessionStore';
 
 const deploymentStatusService = new DeploymentStatusService();
@@ -29,14 +30,12 @@ function App() {
     || new URLSearchParams(window.location.search).has('error');
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [adminRoute, setAdminRoute] = useState(
-    isAdminLocation() || CognitoAdminAuthService.hasPendingLogout(),
-  );
+  const [route, setRoute] = useState(readRoute);
   const [, setAuthRevision] = useState(0);
   const callbackHandled = useRef(false);
 
   useEffect(() => {
-    const updateRoute = () => setAdminRoute(isAdminLocation());
+    const updateRoute = () => setRoute(readRoute());
     window.addEventListener('hashchange', updateRoute);
     window.addEventListener('popstate', updateRoute);
     return () => {
@@ -54,15 +53,16 @@ function App() {
     if (!params.has('code') && !params.has('error')) {
       if (CognitoAdminAuthService.hasPendingLogout()) {
         callbackHandled.current = true;
-        if (CognitoAdminAuthService.pendingLandingHash() !== '#/admin') {
+        const pendingRoute = CognitoAdminAuthService.pendingLandingHash();
+        if (pendingRoute !== '#/admin' && pendingRoute !== '#/operator') {
           cognitoAdminAuth.clearPendingSignIn();
-          setAdminRoute(true);
-          setAuthError('La transacción de acceso ADMIN no es válida. Inicia sesión de nuevo.');
+          setRoute('kiosk');
+          setAuthError('La transacción de acceso no es válida. Inicia sesión de nuevo.');
           setAuthReady(true);
           return;
         }
-        window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
-        setAdminRoute(true);
+        window.history.replaceState(null, '', `${window.location.pathname}${pendingRoute}`);
+        setRoute(pendingRoute === '#/admin' ? 'admin' : 'operator');
         void cognitoAdminAuth.continueSignInAfterLogout()
           .catch((cause: unknown) => {
             cognitoAdminAuth.clearPendingSignIn();
@@ -80,26 +80,27 @@ function App() {
     if (callbackHandled.current) return;
     callbackHandled.current = true;
     const requestedRoute = CognitoAdminAuthService.pendingLandingHash();
-    if (requestedRoute !== '#/admin' || !CognitoAdminAuthService.hasPendingRedirect()) {
+    if ((requestedRoute !== '#/admin' && requestedRoute !== '#/operator')
+      || !CognitoAdminAuthService.hasPendingRedirect()) {
       cognitoAdminAuth.clear();
-      setAuthError('No se encontró una transacción ADMIN válida. Abre la consola e inicia sesión de nuevo.');
-      window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
-      setAdminRoute(true);
+      setAuthError('No se encontró una transacción de acceso válida. Inicia sesión de nuevo.');
+      window.history.replaceState(null, '', `${window.location.pathname}#/`);
+      setRoute('kiosk');
       setAuthReady(true);
       return;
     }
     void cognitoAdminAuth.completeRedirect()
       .then(() => {
-        if (!cognitoAdminAuth.getHumanRoles().includes('ADMIN')) {
+        if (requestedRoute === '#/admin' && !cognitoAdminAuth.getHumanRoles().includes('ADMIN')) {
           cognitoAdminAuth.clear();
           setAuthError('La cuenta no pertenece al grupo ADMIN.');
         }
-        setAdminRoute(true);
+        setRoute(requestedRoute === '#/admin' ? 'admin' : 'operator');
       })
       .catch((cause: unknown) => {
         cognitoAdminAuth.clear();
         setAuthError(cause instanceof Error ? cause.message : 'No se pudo completar el inicio de sesión.');
-        setAdminRoute(true);
+        setRoute(requestedRoute === '#/admin' ? 'admin' : 'operator');
       })
       .finally(() => {
         setAuthRevision((revision) => revision + 1);
@@ -107,85 +108,30 @@ function App() {
       });
   }, [cloudMode]);
 
-  if (cloudMode && !adminRoute && !hasAuthCallback) return <PublicStationRoute />;
+  if (cloudMode && route === 'kiosk' && !hasAuthCallback) return <KioskScreen />;
   if (cloudMode && !authReady) {
-    return <div className="full-page-state" role="status"><LoaderCircle className="animate-spin" />Validando consola ADMIN…</div>;
+    return <div className="full-page-state" role="status"><LoaderCircle className="animate-spin" />Validando acceso…</div>;
   }
-  if (cloudMode && adminRoute && !cognitoAdminAuth.getAccessToken()) {
+  if (cloudMode && route === 'admin' && !cognitoAdminAuth.getAccessToken()) {
     return <CloudAccessPage message={authError} />;
   }
 
   const roles: HumanRole[] = cloudMode ? cognitoAdminAuth.getHumanRoles() : ['OPERATOR'];
-  if (cloudMode && adminRoute && !roles.includes('ADMIN')) {
+  if (cloudMode && route === 'admin' && !roles.includes('ADMIN')) {
     return <AccessDenied onSignOut={() => cognitoAdminAuth.signOut()} />;
   }
-  if (cloudMode && adminRoute) {
+  if (cloudMode && route === 'admin') {
     return <AdminAuditPage onBack={() => cognitoAdminAuth.signOut()} />;
   }
+  if (cloudMode && route === 'operator') {
+    return <OperatorConsole authError={authError} onSignedOut={() => {
+      cognitoAdminAuth.signOut();
+      cognitoAdminAuth.clear();
+      setAuthRevision((revision) => revision + 1);
+    }} />;
+  }
+  if (cloudMode) return <KioskScreen />;
   return <Dashboard roles={roles} cloudMode={cloudMode} />;
-}
-
-type StationGate = 'checking' | 'ready' | 'unregistered' | 'unavailable' | 'resume-error';
-
-function PublicStationRoute() {
-  const [gate, setGate] = useState<StationGate>('checking');
-  const [stationName, setStationName] = useState('');
-  const [activeSession, setActiveSession] = useState<ActiveStationSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
-
-  const refresh = useCallback(async () => {
-    const current = ++generation.current;
-    setGate('checking');
-    setError(null);
-    try {
-      const status = await stationApi.status();
-      if (current !== generation.current) return;
-      if (!status.registered || !status.stationName) {
-        setActiveSession(null);
-        setGate('unregistered');
-        return;
-      }
-      setStationName(status.stationName);
-      if (status.resumeError) {
-        setGate('resume-error');
-        return;
-      }
-      setActiveSession(status.activeSession);
-      setGate('ready');
-    } catch (cause) {
-      if (current !== generation.current) return;
-      setError(cause instanceof Error ? cause.message : 'No se pudo consultar el servicio.');
-      setGate('unavailable');
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    return () => { generation.current += 1; };
-  }, [refresh]);
-
-  if (gate === 'checking') {
-    return <div className="full-page-state" role="status"><LoaderCircle className="animate-spin" />Verificando el puesto…</div>;
-  }
-  if (gate === 'unregistered' || gate === 'unavailable') {
-    return <StationEnrollmentPage
-      onEnrolled={(name) => { setStationName(name); setActiveSession(null); setGate('ready'); }}
-      onRetry={() => void refresh()}
-      unavailable={gate === 'unavailable'}
-      error={error}
-    />;
-  }
-  if (gate === 'resume-error') {
-    return <main className="full-page-state station-resume-error" role="alert">
-      <div><ShieldX size={24} /><h1>No se pudo recuperar la sesión del puesto</h1>
-        <p>Java reporta una sesión activa, pero su estado no está disponible. No se abrirá otra sesión para evitar duplicados.</p>
-        {error && <p>{error}</p>}
-        <button className="button-primary" type="button" onClick={() => void refresh()}>Reintentar conexión</button>
-      </div>
-    </main>;
-  }
-  return <Dashboard roles={[]} cloudMode publicStation stationName={stationName} initialSession={activeSession} />;
 }
 
 function Dashboard({ roles, cloudMode, publicStation = false, stationName = '', initialSession = null }: {
@@ -352,8 +298,12 @@ function AccessDenied({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-function isAdminLocation(): boolean {
-  return window.location.hash.startsWith('#/admin');
+type AppRoute = 'kiosk' | 'operator' | 'admin';
+
+function readRoute(): AppRoute {
+  if (window.location.hash.startsWith('#/operator')) return 'operator';
+  if (window.location.hash.startsWith('#/admin')) return 'admin';
+  return 'kiosk';
 }
 
 export default App;

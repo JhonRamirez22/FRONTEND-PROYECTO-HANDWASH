@@ -33,17 +33,23 @@ export function StationEnrollmentPage({ onEnrolled, onRetry, unavailable = false
 
   return (
     <main className="access-page station-enrollment-page">
-      <section className="access-panel" aria-labelledby="station-enrollment-title">
-        <div className="brand-lockup access-brand" aria-label="HandWash">
+      <header className="station-enrollment-header">
+        <a className="brand-lockup station-enrollment-brand" href="#/" aria-label="HandWash, puesto">
           <span className="brand-mark"><img src="/handwash-logo.png" alt="" /></span>
-          <span><strong>HandWash</strong><small>Puesto de lavado</small></span>
-        </div>
+          <span><strong>HandWash</strong><small>Estación de lavado</small></span>
+        </a>
+        <span className={`station-enrollment-status ${unavailable ? 'is-warning' : ''}`} role="status">
+          <span className={`status-indicator ${unavailable ? 'is-warning' : 'is-pending'}`} aria-hidden="true" />
+          {unavailable ? 'Servicio sin respuesta' : 'Inscripción pendiente'}
+        </span>
+      </header>
+
+      <section className="access-panel" aria-labelledby="station-enrollment-title">
         <div className="access-copy">
-          <p className="section-kicker">Configuración inicial</p>
           <h1 id="station-enrollment-title">Registrar este puesto</h1>
           <p>Un administrador debe entregar un código de inscripción de un solo uso. Después, este equipo podrá iniciar sesiones sin cuenta personal.</p>
         </div>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && !unavailable && <p className="form-error" role="alert">{error}</p>}
         {unavailable ? (
           <div className="setup-notice" role="alert">
             <strong>No se pudo contactar el servicio</strong>
@@ -78,13 +84,12 @@ export function StationEnrollmentPage({ onEnrolled, onRetry, unavailable = false
         <div className="access-note"><ShieldCheck size={16} /><span>La credencial del puesto se mantiene en una cookie segura y no se expone al navegador.</span></div>
       </section>
       <aside className="access-aside">
-        <div className="aside-mark"><img src="/handwash-logo.png" alt="" /></div>
-        <p className="section-kicker">Puesto dedicado</p>
         <h2>Listo para la cámara; inferencia aún pendiente</h2>
         <p>La cámara solicita permiso al iniciar. La vista previa permanece en este navegador; todavía no se transmite a la PC RTX ni se evalúan pasos.</p>
-        <div className="access-limits">
+        <div className="access-limits" role="group" aria-label="Estado de la integración">
           <span><i className="legend-dot dot-blue" />Continuity: vista local</span>
           <span><i className="legend-dot dot-amber" />RTX / YOLO: sin conectar</span>
+          <span><i className="legend-dot dot-service" />Servicio: {unavailable ? 'sin verificar' : 'puesto sin registrar'}</span>
           <span><i className="legend-dot dot-gray" />Imágenes: no se guardan</span>
         </div>
       </aside>

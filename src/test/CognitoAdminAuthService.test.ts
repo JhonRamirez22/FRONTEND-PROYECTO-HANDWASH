@@ -71,16 +71,36 @@ describe('CognitoAdminAuthService', () => {
     const cleanCallback = vi.fn();
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ access_token: 'access-secret', token_type: 'Bearer', expires_in: 3600 }),
+      json: async () => ({ access_token: 'access-secret', id_token: 'identity-token', token_type: 'Bearer', expires_in: 3600 }),
     } as Response);
     const service = new CognitoAdminAuthService(config, storage, fetcher, redirect, cleanCallback);
-    await service.beginSignIn('#/');
+    await service.beginSignIn('#/operator');
     await service.continueSignInAfterLogout();
     const transaction = JSON.parse(storage.getItem('handwash.admin.oidc.transaction')!) as { state: string };
 
-    expect(CognitoAdminAuthService.pendingLandingHash(storage)).toBe('#/');
+    expect(CognitoAdminAuthService.pendingLandingHash(storage)).toBe('#/operator');
     await service.completeRedirect(`${window.location.origin}/?code=auth-code&state=${transaction.state}`);
-    expect(cleanCallback).toHaveBeenCalledWith('#/');
+    expect(cleanCallback).toHaveBeenCalledWith('#/operator');
+  });
+
+  it('starts operator self-registration with the same PKCE callback protections', async () => {
+    const storage = new MemoryStorage();
+    const redirect = vi.fn();
+    const service = new CognitoAdminAuthService(config, storage, vi.fn(), redirect);
+
+    await service.beginSignUp();
+
+    const signup = new URL(redirect.mock.calls[0][0]);
+    expect(signup.pathname).toBe('/signup');
+    expect(signup.searchParams.get('client_id')).toBe(config.clientId);
+    expect(signup.searchParams.get('redirect_uri')).toBe(config.redirectUri);
+    expect(signup.searchParams.get('response_type')).toBe('code');
+    expect(signup.searchParams.get('scope')).toBe('openid email');
+    expect(signup.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(signup.searchParams.get('code_challenge')).toMatch(/^[\w-]{43}$/);
+    expect(signup.searchParams.get('state')).toMatch(/^[\w-]{32}$/);
+    expect(CognitoAdminAuthService.pendingLandingHash(storage)).toBe('#/operator');
+    expect(storage.getItem('handwash.admin.oidc.transaction')).not.toContain('access_token');
   });
 
   it('rejects a callback with mismatched state without exchanging a code', async () => {
@@ -141,7 +161,7 @@ describe('CognitoAdminAuthService', () => {
     const storage = new MemoryStorage();
     const service = new CognitoAdminAuthService(config, storage, vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ access_token: 'access-secret', token_type: 'Bearer', expires_in: 3600 }),
+      json: async () => ({ access_token: 'access-secret', id_token: 'identity-token', token_type: 'Bearer', expires_in: 3600 }),
     } as Response), vi.fn(), vi.fn());
     await service.beginSignIn();
     await service.continueSignInAfterLogout();

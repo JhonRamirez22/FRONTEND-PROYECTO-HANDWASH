@@ -2,13 +2,14 @@ export interface CognitoAdminAuthConfig {
   domain: string;
   clientId: string;
   redirectUri: string;
-  landingHash?: '#/' | '#/admin';
+  landingHash?: '#/' | '#/admin' | '#/operator';
 }
 
 export type HumanRole = 'OPERATOR' | 'ADMIN';
 
 interface CognitoTokenResponse {
   access_token?: unknown;
+  id_token?: unknown;
   token_type?: unknown;
   expires_in?: unknown;
 }
@@ -17,7 +18,7 @@ interface AuthTransaction {
   verifier: string;
   state: string;
   createdAt: number;
-  landingHash: '#/' | '#/admin';
+  landingHash: '#/' | '#/admin' | '#/operator';
   stage: 'logout' | 'authorize';
 }
 
@@ -26,6 +27,7 @@ const TRANSACTION_KEY = 'handwash.admin.oidc.transaction';
 /** Hosted UI Authorization Code + PKCE; API authorization remains authoritative. */
 export class CognitoAdminAuthService {
   private accessToken: string | null = null;
+  private idToken: string | null = null;
   private expiresAt = 0;
 
   constructor(
@@ -54,7 +56,7 @@ export class CognitoAdminAuthService {
     }
   }
 
-  async beginSignIn(landingHash: '#/' | '#/admin' = this.config.landingHash ?? '#/admin'): Promise<void> {
+  async beginSignIn(landingHash: '#/' | '#/admin' | '#/operator' = this.config.landingHash ?? '#/admin'): Promise<void> {
     if (!this.isConfigured()) throw new Error('El inicio de sesión Cognito no está configurado.');
     if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
       throw new Error('PKCE requiere un navegador moderno en HTTPS o localhost.');
@@ -78,6 +80,34 @@ export class CognitoAdminAuthService {
     this.redirect(logout.toString());
   }
 
+  async beginSignUp(landingHash: '#/operator' = '#/operator'): Promise<void> {
+    if (!this.isConfigured()) throw new Error('El registro Cognito no está configurado.');
+    if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
+      throw new Error('PKCE requiere un navegador moderno en HTTPS o localhost.');
+    }
+    const transaction: AuthTransaction = {
+      verifier: randomBase64Url(32), state: randomBase64Url(24),
+      createdAt: Date.now(), landingHash, stage: 'authorize',
+    };
+    try {
+      this.storage.setItem(TRANSACTION_KEY, JSON.stringify(transaction));
+    } catch {
+      throw new Error('El navegador no permite almacenamiento temporal seguro para registrarse.');
+    }
+    const challenge = await sha256Base64Url(transaction.verifier);
+    const signup = new URL('/signup', this.config.domain);
+    signup.search = new URLSearchParams({
+      client_id: this.config.clientId,
+      response_type: 'code',
+      scope: 'openid email',
+      redirect_uri: this.config.redirectUri,
+      code_challenge_method: 'S256',
+      code_challenge: challenge,
+      state: transaction.state,
+    }).toString();
+    this.redirect(signup.toString());
+  }
+
   async continueSignInAfterLogout(): Promise<void> {
     const transaction = this.readTransaction();
     const age = transaction ? Date.now() - transaction.createdAt : Number.POSITIVE_INFINITY;
@@ -98,7 +128,7 @@ export class CognitoAdminAuthService {
     authorize.search = new URLSearchParams({
       client_id: this.config.clientId,
       response_type: 'code',
-      scope: 'openid',
+      scope: 'openid email',
       redirect_uri: this.config.redirectUri,
       code_challenge_method: 'S256',
       code_challenge: challenge,
@@ -143,12 +173,14 @@ export class CognitoAdminAuthService {
     if (!response.ok) throw new Error('No fue posible canjear el código de Cognito.');
 
     const payload = await response.json() as CognitoTokenResponse;
-    if (typeof payload.access_token !== 'string' || payload.token_type !== 'Bearer'
+    if (typeof payload.access_token !== 'string' || typeof payload.id_token !== 'string'
+      || payload.token_type !== 'Bearer'
       || typeof payload.expires_in !== 'number' || !Number.isFinite(payload.expires_in)
       || payload.expires_in <= 0) {
       throw new Error('Cognito devolvió una respuesta de token inválida.');
     }
     this.accessToken = payload.access_token;
+    this.idToken = payload.id_token;
     this.expiresAt = Date.now() + payload.expires_in * 1_000;
     return true;
   }
@@ -161,6 +193,10 @@ export class CognitoAdminAuthService {
     return this.accessToken;
   }
 
+  getIdToken(): string | null {
+    return this.getAccessToken() ? this.idToken : null;
+  }
+
   /** UI routing hint only; Spring Security remains the authorization authority. */
   getHumanRoles(): HumanRole[] {
     const token = this.getAccessToken();
@@ -170,15 +206,17 @@ export class CognitoAdminAuthService {
 
   clear(): void {
     this.accessToken = null;
+    this.idToken = null;
     this.expiresAt = 0;
   }
 
-  static pendingLandingHash(storage: Storage = window.sessionStorage): '#/' | '#/admin' | null {
+  static pendingLandingHash(storage: Storage = window.sessionStorage): '#/' | '#/admin' | '#/operator' | null {
     try {
       const raw = storage.getItem(TRANSACTION_KEY);
       if (!raw) return null;
       const value = JSON.parse(raw) as Partial<AuthTransaction>;
       return value.landingHash === '#/' || value.landingHash === '#/admin'
+        || value.landingHash === '#/operator'
         ? value.landingHash : null;
     } catch {
       return null;
@@ -234,7 +272,8 @@ export class CognitoAdminAuthService {
       if (typeof value.verifier !== 'string' || typeof value.state !== 'string'
         || typeof value.createdAt !== 'number'
         || value.stage !== 'logout' && value.stage !== 'authorize'
-        || value.landingHash !== '#/' && value.landingHash !== '#/admin') return null;
+        || value.landingHash !== '#/' && value.landingHash !== '#/admin'
+          && value.landingHash !== '#/operator') return null;
       return value as AuthTransaction;
     } catch {
       return null;

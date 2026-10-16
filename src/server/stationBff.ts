@@ -4,6 +4,7 @@ const STATION_COOKIE = 'hw_station_credential';
 const SESSION_COOKIE = 'hw_station_session';
 const CSRF_COOKIE = 'hw_station_csrf';
 const COOKIE_PATH = '/api/station';
+const CSRF_COOKIE_PATH = '/api';
 const MAX_BODY_BYTES = 4_096;
 const UPSTREAM_TIMEOUT_MS = 7_000;
 const RATE_WINDOW_MS = 60_000;
@@ -42,6 +43,12 @@ export async function status(request: Request): Promise<Response> {
   let sessionCookie = clearCookie(SESSION_COOKIE);
   let resumeError = false;
   if (typeof upstream.body.activeSessionId === 'string') {
+    const knownSessionId = new URL(request.url).searchParams.get('knownSessionId');
+    if (isUuid(knownSessionId) && knownSessionId === upstream.body.activeSessionId) {
+      return json({ registered: true, stationId: upstream.body.stationId,
+        stationName: upstream.body.stationName, activeSession: null,
+        unchangedActiveSession: true, resumeError: false });
+    }
     try {
       const resume = await callBackend('/api/v1/stations/resume', 'POST', undefined, credential);
       if (resume.status === 200 && isObject(resume.body)) {
@@ -62,6 +69,7 @@ export async function status(request: Request): Promise<Response> {
     stationId: upstream.body.stationId,
     stationName: upstream.body.stationName,
     activeSession,
+    unchangedActiveSession: false,
     resumeError,
   }, 200, sessionCookie);
 }
@@ -88,21 +96,83 @@ export async function enroll(request: Request): Promise<Response> {
   }
 }
 
-export async function startSession(request: Request): Promise<Response> {
+export async function startSession(): Promise<Response> {
+  return error(403, 'OPERATOR_AUTH_REQUIRED');
+}
+
+export async function stopSession(): Promise<Response> {
+  return error(403, 'OPERATOR_AUTH_REQUIRED');
+}
+
+export async function operatorStatus(request: Request): Promise<Response> {
+  if (isCrossSite(request)) return error(403, 'ORIGIN_INVALID');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/me', 'GET', undefined, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body)) return error(502, 'OPERATOR_RESPONSE_INVALID');
+    const grant = safeOperatorGrant(result.body.grant);
+    if (!grant) return error(502, 'OPERATOR_RESPONSE_INVALID');
+    let activeSession: SafeSession | null = null;
+    let cookie: string | undefined = clearCookie(SESSION_COOKIE);
+    let resumeError = false;
+    if (isObject(result.body.activeSession) && isUuid(result.body.activeSession.sessionId)) {
+      const resumed = await callBackend('/api/v1/operator/resume', 'POST', undefined, undefined,
+        { Authorization: authorization });
+      if (resumed.ok && isObject(resumed.body)) {
+        activeSession = safeSession(resumed.body);
+        cookie = sessionCookieFor(resumed.body) ?? undefined;
+        if (!activeSession || !cookie) return error(502, 'SESSION_RESPONSE_INVALID');
+      } else resumeError = true;
+    }
+    return json({ grant, activeSession, resumeError }, 200, cookie);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorClaim(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 8)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  const idToken = request.headers.get('x-cognito-id-token') ?? '';
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  if (idToken.length < 100 || idToken.length > 8_192 || !/^[A-Za-z0-9_.-]+$/.test(idToken)) {
+    return error(400, 'ID_TOKEN_INVALID');
+  }
+  const body = await readJson(request);
+  if (!body || typeof body.code !== 'string' || body.code.length < 40 || body.code.length > 64) {
+    return error(400, 'OPERATOR_CODE_INVALID');
+  }
+  try {
+    const result = await callBackend('/api/v1/operator/claim', 'POST', { code: body.code }, undefined,
+      { Authorization: authorization, 'X-Cognito-Id-Token': idToken });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const grant = isObject(result.body) ? safeOperatorGrant(result.body) : null;
+    if (!grant) return error(502, 'OPERATOR_RESPONSE_INVALID');
+    return json(grant);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorStartSession(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
   if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
-  const credential = cookieValue(request, STATION_COOKIE);
-  if (!credential) return error(401, 'STATION_NOT_REGISTERED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
   const body = await readJson(request);
   if (!body || !isProtocol(body.protocolo) || !isUuid(body.requestId)) {
     return error(400, 'SESSION_REQUEST_INVALID');
   }
   try {
-    const result = await callBackend('/api/v1/stations/session', 'POST', {
-      protocolo: body.protocolo,
-      producerProtocolVersion: '2',
-    }, credential, { 'X-Station-Request-Id': body.requestId });
+    const result = await callBackend('/api/v1/operator/session', 'POST', {
+      protocolo: body.protocolo, producerProtocolVersion: '2',
+    }, undefined, { Authorization: authorization, 'X-Station-Request-Id': body.requestId });
     if (!result.ok) return upstreamError(result.status, result.body);
     if (!isObject(result.body)) return error(502, 'SESSION_RESPONSE_INVALID');
     const cookie = sessionCookieFor(result.body);
@@ -114,18 +184,40 @@ export async function startSession(request: Request): Promise<Response> {
   }
 }
 
-export async function stopSession(request: Request): Promise<Response> {
+export async function operatorStopSession(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
-  const sessionToken = cookieValue(request, SESSION_COOKIE);
-  if (!sessionToken) return error(401, 'SESSION_CAPABILITY_EXPIRED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
   const body = await readJson(request);
   if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
   try {
-    const result = await callBackend(`/api/v1/session/${body.sessionId}`, 'DELETE', undefined,
-      undefined, { 'X-Session-Token': sessionToken });
+    const result = await callBackend(`/api/v1/operator/sessions/${body.sessionId}`, 'DELETE',
+      undefined, undefined, { Authorization: authorization });
     if (!result.ok) return upstreamError(result.status, result.body);
     return json({ stopped: true }, 200, clearCookie(SESSION_COOKIE));
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorTicket(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 24)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
+  try {
+    const result = await callBackend(`/api/v1/operator/sessions/${body.sessionId}/websocket-ticket`,
+      'POST', undefined, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || typeof result.body.ticket !== 'string'
+      || result.body.ticket.length < 32 || typeof result.body.expiresAt !== 'string') {
+      return error(502, 'WEBSOCKET_TICKET_INVALID');
+    }
+    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt });
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
   }
@@ -135,10 +227,14 @@ export async function ticket(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
   const sessionToken = cookieValue(request, SESSION_COOKIE);
-  if (!sessionToken) return error(401, 'SESSION_CAPABILITY_EXPIRED');
+  const credential = cookieValue(request, STATION_COOKIE);
+  if (!sessionToken || !credential) return error(401, 'SESSION_CAPABILITY_EXPIRED');
   const body = await readJson(request);
   if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
   try {
+    const station = await callBackend('/api/v1/stations/me', 'GET', undefined, credential);
+    if (!station.ok || !isObject(station.body)
+      || station.body.activeSessionId !== body.sessionId) return error(403, 'STATION_SESSION_MISMATCH');
     const result = await callBackend(`/api/v1/session/${body.sessionId}/websocket-ticket`, 'POST',
       undefined, undefined, { 'X-Session-Token': sessionToken });
     if (!result.ok) return upstreamError(result.status, result.body);
@@ -157,10 +253,14 @@ export async function webrtcTicket(request: Request): Promise<Response> {
   if (securityError) return securityError;
   if (!allowRequest(request, 24)) return error(429, 'RATE_LIMITED');
   const sessionToken = cookieValue(request, SESSION_COOKIE);
-  if (!sessionToken) return error(401, 'SESSION_CAPABILITY_EXPIRED');
+  const credential = cookieValue(request, STATION_COOKIE);
+  if (!sessionToken || !credential) return error(401, 'SESSION_CAPABILITY_EXPIRED');
   const body = await readJson(request);
   if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
   try {
+    const station = await callBackend('/api/v1/stations/me', 'GET', undefined, credential);
+    if (!station.ok || !isObject(station.body)
+      || station.body.activeSessionId !== body.sessionId) return error(403, 'STATION_SESSION_MISMATCH');
     const result = await callBackend(`/api/v1/session/${body.sessionId}/webrtc-ticket`, 'POST',
       undefined, undefined, { 'X-Session-Token': sessionToken });
     if (!result.ok) return upstreamError(result.status, result.body);
@@ -338,6 +438,11 @@ function upstreamError(statusCode: number, body: unknown): Response {
     'PUESTO_NO_AUTORIZADO', 'CODIGO_DE_INSCRIPCION_INVALIDO', 'PUESTO_CON_SESION_ACTIVA',
     'LIMITE_CREACION_SESIONES', 'LIMITE_INTENTOS_VINCULACION', 'CAPTURADOR_PROTOCOL_VERSION_REQUIRED',
     'SESION_TERMINADA', 'ACCESO_NO_AUTORIZADO', 'AUDITORIA_NO_DISPONIBLE',
+    'OPERADOR_SIN_ASIGNACION', 'CODIGO_OPERADOR_INVALIDO', 'CORREO_NO_COINCIDE',
+    'OPERADOR_YA_ASIGNADO', 'PUESTO_NO_DISPONIBLE', 'CUENTA_COGNITO_NO_AUTORIZADA',
+    'ID_TOKEN_NO_VALIDO', 'CORREO_NO_VERIFICADO', 'TICKET_WEBSOCKET_NO_DISPONIBLE',
+    'STATION_SESSION_MISMATCH', 'ACCESO_NO_AUTORIZADO', 'ASIGNACION_NO_DISPONIBLE',
+    'PUESTO_CON_SESION_ACTIVA',
   ]);
   const upstreamCode = isObject(body) && typeof body.error === 'string' ? body.error : null;
   const code = upstreamCode && allowedCodes.has(upstreamCode)
@@ -376,7 +481,7 @@ function persistentCookie(name: string, value: string): string {
 }
 
 function csrfCookie(value: string): string {
-  return `${CSRF_COOKIE}=${value}; Path=${COOKIE_PATH}; Max-Age=1800; Secure; SameSite=Strict`;
+  return `${CSRF_COOKIE}=${value}; Path=${CSRF_COOKIE_PATH}; Max-Age=1800; Secure; SameSite=Strict`;
 }
 
 function clearCookie(name: string): string {
@@ -389,6 +494,11 @@ function safeEqual(left: string, right: string): boolean {
 }
 
 function isHexToken(value: string): boolean { return /^[a-f0-9]{64}$/.test(value); }
+function bearerToken(request: Request): string | null {
+  const authorization = request.headers.get('authorization') ?? '';
+  return /^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(authorization)
+    && authorization.length <= 8_200 ? authorization : null;
+}
 function isCredential(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{40,64}$/.test(value);
 }
@@ -398,6 +508,20 @@ function isUuid(value: unknown): value is string {
 }
 function isProtocol(value: unknown): value is 'DOMESTICO' | 'CLINICO_QUIRURGICO' {
   return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+}
+function safeOperatorGrant(value: unknown): JsonObject | null {
+  if (!isObject(value) || typeof value.subject !== 'string' || !value.subject
+    || typeof value.email !== 'string' || !value.email || !isUuid(value.stationId)
+    || typeof value.stationName !== 'string' || !Number.isSafeInteger(value.grantedAtEpochMs)
+    || (value.revokedAtEpochMs !== null && !Number.isSafeInteger(value.revokedAtEpochMs))) return null;
+  return {
+    subject: value.subject,
+    email: value.email,
+    stationId: value.stationId,
+    stationName: value.stationName,
+    grantedAtEpochMs: value.grantedAtEpochMs,
+    revokedAtEpochMs: value.revokedAtEpochMs,
+  };
 }
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

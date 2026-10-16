@@ -53,6 +53,35 @@ export interface StationEnrollmentCode {
   expiresAtEpochMs: number;
 }
 
+export interface OperatorAccessCode {
+  codeId: string;
+  stationId: string;
+  email: string;
+  createdBy: string;
+  createdAtEpochMs: number;
+  consumedAtEpochMs: number | null;
+  consumedBy: string | null;
+  revokedAtEpochMs: number | null;
+}
+
+export interface OperatorGrant {
+  subject: string;
+  email: string;
+  stationId: string;
+  stationName: string;
+  grantedBy: string;
+  grantedAtEpochMs: number;
+  revokedAtEpochMs: number | null;
+}
+
+export interface IssuedOperatorAccessCode {
+  codeId: string;
+  code: string;
+  stationId: string;
+  email: string;
+  createdAtEpochMs: number;
+}
+
 export class AdminAuditApi {
   async encounters(token: string, limit = 50): Promise<EncounterAuditRecord[]> {
     return this.request(`/api/v1/admin/encounters?limit=${limit}`, token);
@@ -89,6 +118,26 @@ export class AdminAuditApi {
   async bindStationProducer(token: string, stationId: string, clientId: string): Promise<void> {
     await this.request(`/api/v1/admin/stations/${encodeURIComponent(stationId)}/producer`,
       token, undefined, 'PUT', { clientId });
+  }
+
+  async operators(token: string): Promise<OperatorGrant[]> {
+    return this.request('/api/v1/admin/operators', token);
+  }
+
+  async operatorCodes(token: string): Promise<OperatorAccessCode[]> {
+    return this.request('/api/v1/admin/operators/codes', token);
+  }
+
+  async issueOperatorCode(token: string, stationId: string, email: string): Promise<IssuedOperatorAccessCode> {
+    return this.request('/api/v1/admin/operators/codes', token, undefined, 'POST', { stationId, email });
+  }
+
+  async revokeOperatorCode(token: string, codeId: string): Promise<void> {
+    await this.request(`/api/v1/admin/operators/codes/${encodeURIComponent(codeId)}`, token, undefined, 'DELETE');
+  }
+
+  async revokeOperator(token: string, subject: string): Promise<void> {
+    await this.request(`/api/v1/admin/operators/${encodeURIComponent(subject)}`, token, undefined, 'DELETE');
   }
 
   private async request<T>(path: string, token: string, signal?: AbortSignal,

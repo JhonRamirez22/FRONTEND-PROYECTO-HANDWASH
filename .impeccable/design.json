@@ -1,14 +1,14 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-11T22:44:23Z",
-  "title": "Design System: HandWash Cloud",
+  "generatedAt": "2026-10-16T13:34:00Z",
+  "title": "Design System: HandWash Station",
   "extensions": {
     "colorMeta": {
       "primary": {
         "role": "action",
         "displayName": "Petróleo de acción",
-        "canonical": "#0D6669",
-        "contrastOnWhite": "6.73:1"
+        "canonical": "#0D756F",
+        "contrastOnWhite": "5.54:1"
       },
       "brand": {
         "role": "identity",
@@ -18,25 +18,25 @@
       "accent": {
         "role": "accent",
         "displayName": "Turquesa",
-        "canonical": "#18B3AE",
-        "usage": "Acento, nunca texto blanco pequeño"
+        "canonical": "#45D0C5",
+        "usage": "Acento e indicador; texto pequeño solo sobre fondo oscuro, nunca blanco pequeño sobre turquesa"
       },
       "background": {
         "role": "canvas",
         "displayName": "Verde de agua claro",
-        "canonical": "#F3F8F7"
+        "canonical": "#101B21"
       },
       "foreground": {
         "role": "text",
         "displayName": "Tinta petróleo oscura",
-        "canonical": "#1B2C33",
-        "contrastOnCanvas": "13.46:1"
+        "canonical": "#EDF5F4",
+        "contrastOnCanvas": "15.80:1"
       },
       "mutedText": {
         "role": "secondary-text",
         "displayName": "Tinta secundaria",
-        "canonical": "#53666B",
-        "contrastOnCanvas": "5.63:1"
+        "canonical": "#B5C5C8",
+        "contrastOnCanvas": "9.81:1"
       }
     },
     "typographyMeta": {
@@ -53,6 +53,12 @@
       "surfaceRadius": "14px",
       "controlRadius": "9px",
       "compactIndicatorRadius": "999px"
+    },
+    "surfaceMeta": {
+      "panel": "#17252D",
+      "raised": "#1D3039",
+      "outline": "#344A54",
+      "direction": "dark low-glare, static subtle contour; no parallax, grain or external media"
     },
     "shadows": [
       {
@@ -97,9 +103,9 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Acción disponible solo cuando la configuración real lo permite.",
-      "html": "<button class=\"button-primary\" type=\"button\">Enlazar iPhone</button>",
-      "css": ".button-primary { min-height: 44px; padding: 0 15px; border-radius: 9px; background: #0D6669; color: #fff; }"
+      "description": "Acción de operador; la pantalla pública del puesto no presenta controles.",
+      "html": "<button class=\"operator-button operator-button--primary\" type=\"button\">Iniciar detección</button>",
+      "css": ".operator-button--primary { min-height: 44px; padding: 0 15px; border-radius: 9px; background: #0D756F; color: #fff; }"
     },
     {
       "name": "Quiet Button",
@@ -107,7 +113,7 @@
       "refersTo": "button-quiet",
       "description": "Acción secundaria con contorno y contraste legibles.",
       "html": "<button class=\"button-quiet\" type=\"button\">Cerrar sesión</button>",
-      "css": ".button-quiet { min-height: 44px; padding: 0 12px; border: 1px solid #C7D8D4; border-radius: 9px; background: #fff; color: #173F52; }"
+      "css": ".operator-button--quiet { min-height: 44px; padding: 0 12px; border: 1px solid #344A54; border-radius: 9px; background: #1D3039; color: #EDF5F4; }"
     },
     {
       "name": "Status Chip",
@@ -123,7 +129,7 @@
       "refersTo": "panel",
       "description": "Superficie para cámara, progreso y auditoría; no se anida por decoración.",
       "html": "<section class=\"panel\"><h2>Movimientos de fricción</h2><p>Estado recibido de Java</p></section>",
-      "css": ".panel { border: 1px solid #D5E2DF; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgb(23 63 82 / 4%), 0 8px 20px rgb(23 63 82 / 4%); }"
+      "css": ".panel { border: 1px solid #344A54; border-radius: 14px; background: #17252D; }"
     },
     {
       "name": "Processing Path",
@@ -135,10 +141,11 @@
     }
   ],
   "narrative": {
-    "northStar": "Operación clínica clara, estados verificables",
-    "overview": "Interfaz de trabajo no clínica para operador y auditor. Conserva los flujos y diferencia cámara local, candidato de modelo y estado Java.",
+    "northStar": "Puesto pasivo, operación protegida, estados verificables",
+    "overview": "Kiosco paciente sin controles; consola de operador y ADMIN separadas. Java mantiene autoridad y la interfaz presenta estados reales.",
     "keyCharacteristics": [
-      "Marca petróleo y turquesa",
+      "Profundidad oscura y contornos estáticos discretos",
+      "Puesto pasivo, controles solo en consola autenticada",
       "Jerarquía operativa",
       "Estados explícitos",
       "Accesibilidad y baja animación"
@@ -163,7 +170,8 @@
     "donts": [
       "No afirmar que WebRTC o RTX están conectados sin evidencia.",
       "No guardar ni transmitir imágenes desde la SPA.",
-      "No cambiar contratos, roles o reglas de Java durante un rediseño."
+      "No presentar controles en el kiosco público.",
+      "No desplegar en AWS o Vercel durante esta fase."
     ]
   }
 }

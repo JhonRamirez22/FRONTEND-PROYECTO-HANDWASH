@@ -16,7 +16,7 @@ describe('public kiosk routing', () => {
     window.location.hash = '';
   });
 
-  it('shows enrollment publicly without Cognito or an admin navigation link', async () => {
+  it('shows a passive kiosk without controls, enrollment, role links or Cognito', async () => {
     vi.spyOn(stationApi, 'status').mockResolvedValue({
       registered: false, stationId: null, stationName: null, activeSession: null, resumeError: false,
     });
@@ -24,10 +24,34 @@ describe('public kiosk routing', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Registrar este puesto' })).toBeInTheDocument();
+    expect(await screen.findByText(/Puesto pendiente de configuración/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Progreso' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Video en vivo del lavado' })).toBeInTheDocument();
+    expect(screen.getByText('Secuencia del lavado')).toBeInTheDocument();
+    expect(screen.getByRole('list').querySelectorAll(':scope > li')).toHaveLength(6);
+    await waitFor(() => expect(stationApi.status).toHaveBeenCalled());
+    expect(document.querySelectorAll('.patient-kiosk button, .patient-kiosk form, .patient-kiosk a')).toHaveLength(0);
+    expect(document.querySelector('.kiosk-connection--setup')).toBeInTheDocument();
     expect(screen.queryByText(/Iniciar sesión como ADMIN/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Auditoría/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Auditoría|ADMIN|Operador/ })).not.toBeInTheDocument();
     expect(token).not.toHaveBeenCalled();
+  });
+
+  it('keeps a backend outage visible instead of presenting it as an idle session', async () => {
+    vi.spyOn(stationApi, 'status').mockRejectedValue(new Error('offline'));
+
+    render(<App />);
+
+    expect(await screen.findByText(/Conexión interrumpida\. El puesto requiere revisión del operador\./)).toBeInTheDocument();
+    expect(document.querySelector('.kiosk-connection--error')).toBeInTheDocument();
+  });
+
+  it('exposes operator sign-in and registration only on the protected operator route', async () => {
+    window.location.hash = '#/operator';
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Control del puesto' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear cuenta de operador' })).toBeInTheDocument();
   });
 
   it('keeps the hidden admin route behind Cognito', async () => {

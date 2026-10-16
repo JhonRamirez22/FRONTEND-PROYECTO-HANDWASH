@@ -16,7 +16,7 @@ describe('ProcessingPath', () => {
 
     expect(screen.getByText('Vista previa local')).toBeInTheDocument();
     expect(screen.getByText('Esperando PC RTX autenticado')).toBeInTheDocument();
-    expect(screen.getByText('API REST disponible')).toBeInTheDocument();
+    expect(screen.getByText(/API REST disponible/)).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Ruta de procesamiento' })).toBeInTheDocument();
   });
 
@@ -38,7 +38,7 @@ describe('ProcessingPath', () => {
     render(<ProcessingPath previewReady backendStatus={development} backendLoading={false} relayStatus="connected" />);
 
     expect(screen.getByText('WebRTC conectado; esperando estado de modelos e inferencia')).toBeInTheDocument();
-    expect(screen.getByText('API REST disponible')).toBeInTheDocument();
+    expect(screen.getByText(/API REST disponible/)).toBeInTheDocument();
   });
 
   it('shows RTX inference telemetry without presenting it as a Java-confirmed step', () => {
@@ -65,5 +65,35 @@ describe('ProcessingPath', () => {
 
     expect(screen.getByText('Java rechazó el contrato del productor; revisa la configuración RTX')).toBeInTheDocument();
     expect(screen.queryByText(/Inferencia activa/)).not.toBeInTheDocument();
+  });
+
+  it('separates a model candidate from Java sequence state', () => {
+    render(<ProcessingPath
+      previewReady
+      backendStatus={development}
+      backendLoading={false}
+      relayStatus="connected"
+      candidateClass="PASO_1_PALMAS"
+      candidateConfidence={0.83}
+      javaStep="PASO_2_DORSOS"
+    />);
+
+    expect(screen.getByText('Candidato del modelo')).toBeInTheDocument();
+    expect(screen.getByText('Palmas · 83 %')).toBeInTheDocument();
+    expect(screen.getByText('Java · secuencia')).toBeInTheDocument();
+    expect(screen.getByText(/Estado actual: Dorsos/)).toBeInTheDocument();
+    expect(screen.getByText('Java · secuencia').closest('li')).toHaveClass('is-active');
+  });
+
+  it('does not invent a candidate or active Java step when neither is present', () => {
+    render(<ProcessingPath
+      previewReady={false}
+      backendStatus={development}
+      backendLoading={false}
+      relayStatus="idle"
+    />);
+
+    expect(screen.getByText('Sin candidato reportado')).toBeInTheDocument();
+    expect(screen.getByText(/API REST disponible · Sin paso activo/)).toBeInTheDocument();
   });
 });

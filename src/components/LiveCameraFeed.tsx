@@ -48,10 +48,11 @@ interface LiveCameraFeedProps {
   onToggleBrowserCamera?: () => Promise<boolean>;
   relayStatus?: CameraRelayState | 'idle';
   producerTelemetry?: ProducerTelemetry | null;
+  passive?: boolean;
 }
 
 export function LiveCameraFeed({ backendStatus, backendLoading = true, browserStream: controlledStream,
-  onToggleBrowserCamera, relayStatus = 'idle', producerTelemetry = null }: LiveCameraFeedProps) {
+  onToggleBrowserCamera, relayStatus = 'idle', producerTelemetry = null, passive = false }: LiveCameraFeedProps) {
   const [status, setStatus] = useState<StreamStatus>('idle');
   const [cameraHealth, setCameraHealth] = useState<CameraHealth>('unknown');
   const [handPresence, setHandPresence] = useState<HandPresence | null>(null);
@@ -67,6 +68,8 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true, browserSt
   const { linkCamera, linkCloudCamera } = useSession();
   const sessionId = useSessionStore((state) => state.sessionId);
   const currentStep = useSessionStore((state) => state.currentStep);
+  const candidateClass = useSessionStore((state) => state.claseCandidata);
+  const candidateConfidence = useSessionStore((state) => state.confianzaCandidata);
   const isActive = useSessionStore((state) => state.isActive);
   const summary = useSessionStore((state) => state.summary);
   const retries = useSessionStore((state) => state.intentosReiniciados);
@@ -248,12 +251,18 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true, browserSt
             + `${(handPresence.warmupRequiredMs / 1000).toFixed(1)} s`;
 
   return (
-    <section className="panel camera-panel" aria-label="Video en vivo del lavado">
+    <section className={`panel camera-panel ${cloudMode ? 'has-processing-path' : ''}`} aria-label="Video en vivo del lavado">
       <header className="panel-header">
         <div className="panel-heading-icon"><ScanEye size={17} aria-hidden="true" /></div>
         <h2>{cloudMode ? 'Cámara de Continuidad' : 'Cámara y detección YOLO'}</h2>
         <div className="camera-state" role="status" aria-live="polite">
-          {cloudMode && status === 'live' ? (
+          {passive && status === 'live' ? (
+            <><Wifi className="h-4 w-4 text-success" aria-hidden="true" /><span>Cámara conectada</span></>
+          ) : passive && status === 'connecting' ? (
+            <><LoaderCircle className="h-4 w-4 animate-spin text-warning" aria-hidden="true" /><span>Esperando cámara</span></>
+          ) : passive && status === 'offline' ? (
+            <><WifiOff className="h-4 w-4 text-warning" aria-hidden="true" /><span>Cámara sin señal</span></>
+          ) : cloudMode && status === 'live' ? (
             <><Wifi className="h-4 w-4 text-warning" aria-hidden="true" /><span>Vista previa local</span></>
           ) : status === 'live' && cameraHealth === 'connected' ? (
             <><Wifi className="h-4 w-4 text-success" aria-hidden="true" /><span>En vivo</span></>
@@ -271,7 +280,7 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true, browserSt
         </div>
       </header>
 
-      <div className="camera-toolbar">
+      {!passive && <div className="camera-toolbar">
         <button type="button" onClick={() => void linkIphone()}
           disabled={linking}
           className="button-primary">
@@ -297,14 +306,17 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true, browserSt
                   : 'Vista previa local · inicia la sesión para enviar video al PC RTX'
                   : 'Sin grabación · el PC RTX debe estar activo para recibir video'}
         </span>}
-      </div>
+      </div>}
 
-      {cloudMode && <ProcessingPath
+      {cloudMode && !passive && <ProcessingPath
         previewReady={Boolean(browserStream)}
         backendStatus={backendStatus}
         backendLoading={backendLoading}
         relayStatus={relayStatus}
         producerTelemetry={producerTelemetry}
+        candidateClass={isActive ? candidateClass : ''}
+        candidateConfidence={isActive ? candidateConfidence : null}
+        javaStep={currentStep || null}
       />}
 
       <div className="camera-stage">
@@ -338,26 +350,31 @@ export function LiveCameraFeed({ backendStatus, backendLoading = true, browserSt
                 {status === 'connecting' ? <LoaderCircle className="animate-spin" size={20} /> : <WifiOff size={20} />}
               </div>
               <p className="camera-empty-title">
-                {status === 'idle' ? 'Enlaza el iPhone para comenzar'
+                {status === 'idle' ? passive ? 'Esperando cámara' : 'Enlaza el iPhone para comenzar'
                   : status === 'connecting' ? 'Esperando la cámara del iPhone'
                     : 'No llega el video de esta sesión'}
               </p>
-              <p className="camera-empty-copy">
+              {!passive && <p className="camera-empty-copy">
                 {status === 'idle'
                   ? 'No necesitas códigos ni una app en el iPhone.'
                   : 'Comprueba que el iPhone esté disponible y que el launcher siga activo. Pulsa Enlazar iPhone para reintentar.'}
-              </p>
+              </p>}
             </div>
           </div>
         )}
 
         <div className="camera-caption">
-          {isActive
+          {passive ? isActive
+            ? currentStep ? `Java confirma: ${STEP_LABELS[currentStep as keyof typeof STEP_LABELS] ?? currentStep}`
+              : 'Evaluación activa · esperando evidencia de manos'
+            : summary ? 'Sesión finalizada' : 'Esperando al operador'
+            : null}
+          {!passive && (isActive
             ? currentStep ? `Movimiento actual: ${STEP_LABELS[currentStep as keyof typeof STEP_LABELS] ?? currentStep}` : retries > 0 ? `Intento reiniciado · vuelve a empezar por ${mode === 'PROTOCOLO_OMS' ? 'mojar las manos' : 'Palmas'}` : cloudMode && relayStatus !== 'connected' ? 'Sesión Java activa · esperando cámara y PC RTX' : 'Sesión activa · esperando el primer paso'
             : summary ? 'Sesión finalizada · consulta el resumen'
               : cloudMode ? browserStream ? 'Vista previa local · el enlace WebRTC se activa al iniciar la sesión' : 'Enlaza el iPhone para comenzar'
-                : 'Enlaza el iPhone para evaluar los movimientos'}
-          {isActive && mode !== 'PROTOCOLO_OMS' && handPresenceLabel && (
+                : 'Enlaza el iPhone para evaluar los movimientos')}
+          {!passive && isActive && mode !== 'PROTOCOLO_OMS' && handPresenceLabel && (
             <p className="mt-1 text-white/80" role="status" aria-live="polite">{handPresenceLabel}</p>
           )}
         </div>

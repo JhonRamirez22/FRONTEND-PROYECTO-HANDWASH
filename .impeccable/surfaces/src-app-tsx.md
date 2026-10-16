@@ -13,30 +13,31 @@ related_targets:
 
 ## Surface scope
 
-Cloud operations web UI with a public fixed kiosk and an unlisted Cognito ADMIN console, using the existing React 18/Vite app, Vercel BFF and Java/Spring REST/WSS.
+Cloud UI source with passive public kiosk `#/`, authenticated operator `#/operator` and hidden Cognito ADMIN `#/admin`, using the existing React 18/Vite app, Vercel BFF and Java/Spring REST/WSS. This revision is local-only.
 
 ## Audience and job
 
-The kiosk shows real registration, camera, backend and Java-confirmed session state; it requests camera permission only after an explicit start. ADMIN enrolls/revokes stations and reviews encounters, failed attempts, access events and per-session audit without editing decisions.
+The kiosk shows the real video, Java-confirmed progress and brief status only. Operators enroll the physical Mac, authorize its camera and control sessions. ADMIN issues/revokes operator grants and manages station registration/audit.
 
 ## Truth constraints
 
 - Render only real Cognito, backend, WebSocket and browser-camera state.
-- Continuity preview is local to the Mac. No WebRTC relay or RTX YOLO transmission is implied.
-- Keep camera candidate and Java session state visually distinct.
+- Continuity preview is local to the Mac. WebRTC/RTX is shown only when actual telemetry confirms it.
+- Show camera preview, RTX/YOLO relay, model candidate and Java session state as separate stages; do not imply that a candidate is Java-confirmed.
 - Never show human roles or an admin link on the public kiosk. The unlisted hash route is not a secret; Java API authorization remains authoritative.
 - Station credentials and owner capabilities stay in secure HttpOnly cookies behind same-origin Vercel functions, never in the browser bundle or local storage.
 - Preserve no-photo/no-video persistence and the non-clinical warning.
-- Keep the six-step/sequence behavior, Cognito PKCE for ADMIN, Java API/WS contract and real camera controls unchanged.
+- Keep session/decision rules and Java authority unchanged. New operator API/BFF contracts are local additions; do not deploy them here.
 
 ## Direction
 
-Light clinical-operational identity: petroleum `#173F52`, turquoise `#18B3AE` as accent only, action `#0D6669`, canvas `#F3F8F7`, ink `#1B2C33`, secondary `#53666B`. Navigation is dark petroleum; work surfaces remain pale and readable. Surface radius 14px, control radius 9px, pill status. System UI stack. No new visual or animation dependencies.
+The public patient kiosk uses a light clinical canvas (`#F3F8F7`), white surfaces, ink (`#1B2C33`) and accessible action teal (`#0D6669`); keep the live camera stage dark (`#11232B`) for image contrast. The operator workflow remains dark/low-glare (`#101B21`, `#17252D`/`#1D3039`, `#EDF5F4`, `#45D0C5`). No parallax, grain, external media, fake metrics or decorative controls. Keep audit tables high-contrast and readable.
 
 ## Screen composition
 
-- Public kiosk: one-time enrollment when unregistered; otherwise camera and actual processing path remain primary. State clearly that RTX/YOLO inference is not connected.
-- ADMIN: sign-in only at `/#/admin`; station management, accessible filters, real loading/empty/error states, audit data and selected event history.
+- Public kiosk: no buttons/forms/navigation/roles; only video, Java progress and operational status.
+- Operator: `#/operator` Cognito PKCE/MFA, email-bound one-use access code, physical station commissioning, camera authorization, remote start/stop.
+- ADMIN: `/#/admin` protected by Java ADMIN role; station/operator code management and audit.
 - At 820px or less, stack work areas and move navigation to the top. At 560px or less, filters and connection path use one column.
 
 ## Accessibility and motion

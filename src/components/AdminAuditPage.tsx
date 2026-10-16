@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { AdminAuditApi, type EncounterAuditRecord, type FailedAttemptAuditRecord, type SessionAuditEvent } from '../lib/AdminAuditApi';
 import { AdminStationRegistry } from './AdminStationRegistry';
+import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { cognitoAdminAuth } from '../lib/adminAuth';
 import { DeploymentStatusService } from '../lib/DeploymentStatusService';
 import { AppShell } from './AppShell';
@@ -209,6 +210,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
         </section>
 
         {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
+        {view === 'ready' && <AdminOperatorAccess />}
 
         {view === 'ready' && (
           <div className="audit-filter-row" role="search" aria-label="Filtrar encuentros">

@@ -26,4 +26,14 @@ describe('StationEnrollmentPage', () => {
     expect(screen.getByRole('button', { name: 'Registrar estación' })).toBeDisabled();
     expect(stationApi.enroll).not.toHaveBeenCalled();
   });
+
+  it('shows one actionable service error instead of exposing a parser detail', () => {
+    render(<StationEnrollmentPage onEnrolled={vi.fn()} onRetry={vi.fn()} unavailable
+      error="Failed to execute 'json' on 'Response': Unexpected end of JSON input" />);
+
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByText('No se pudo contactar el servicio')).toBeInTheDocument();
+    expect(screen.queryByText(/Unexpected end of JSON input/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  });
 });

@@ -155,5 +155,5 @@ export function useSession() {
     };
   }, []);
 
-  return { start, join, resume, stop, linkCamera, linkCloudCamera, isActive, isOwner };
+  return { start, join, resume, stop, disconnect, linkCamera, linkCloudCamera, isActive, isOwner };
 }

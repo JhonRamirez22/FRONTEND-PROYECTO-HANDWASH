@@ -1,10 +1,10 @@
 ## Surface scope
 
-Rediseño visual de la web operativa HandWash para cloud, construido sobre React 18, TypeScript, Vite y Tailwind CSS v4. Las pantallas cubiertas son acceso, estación del operador y auditoría ADMIN.
+Implementación local del puesto público pasivo `#/`, la consola autenticada `#/operator` y la consola ADMIN `/#/admin`, sobre React 18, TypeScript, Vite y Tailwind CSS v4. Sin despliegue durante esta fase.
 
 ## Audience and job
 
-El operador valida configuración, enlaza la vista previa local de Continuity, inicia o finaliza una sesión autorizada y lee el progreso recibido de Java. ADMIN filtra encuentros y consulta eventos en modo de solo lectura.
+El paciente solo ve video, progreso confirmado por Java y estados breves. El operador canjea su asignación, provisiona la cámara en el Mac y controla sesiones. ADMIN provisiona estaciones, emite/revoca asignaciones y revisa eventos.
 
 ## Proof and constraints
 
@@ -12,26 +12,27 @@ El operador valida configuración, enlaza la vista previa local de Continuity, i
 - El navegador muestra una vista previa local. WebRTC con la RTX/YOLO no está conectado hasta demostrar lo contrario.
 - Java mantiene autoridad sobre autorización, secuencia y resultado. La interfaz no recalcula reglas.
 - No guardar ni transmitir imágenes/video, inventar detecciones, afirmar cumplimiento OMS completo o presentar aprobación clínica.
-- Mantener rutas, contratos API/WS, login PKCE, roles, controles de cámara y estados funcionales.
-- No cambiar backend, AWS, datos ni modelos como parte del rediseño.
+- Java mantiene autorización, secuencia y resultado; el hash de ruta no es una frontera de seguridad.
+- Los nuevos flujos de operador requieren endpoints Java/BFF y persistencia; no tocar reglas de lavado, modelos ni datos.
+- No desplegar cambios en AWS ni Vercel.
 
 ## Direction contract
 
 ### THESIS
 
-Una estación operativa sobria y propia, diseñada alrededor de la cámara y los estados comprobables, no de tarjetas decorativas. El candidato del modelo y el estado recibido de Java deben distinguirse a primera vista.
+Una estación operativa sobria y propia, diseñada alrededor de la cámara y los estados comprobables, no de tarjetas decorativas. El puesto público usa fondo claro para el entorno clínico; la vista de cámara conserva su escenario oscuro para el contraste. El candidato del modelo y el estado recibido de Java deben distinguirse a primera vista.
 
 ### OWN-WORLD
 
-Petróleo `#173F52`, acción accesible `#0D6669`, turquesa `#18B3AE` como acento, lienzo `#F3F8F7`, tinta `#1B2C33` y secundario `#53666B`. Tema claro fijo. Superficies con radio 14px, controles 9px e indicadores cápsula. No usar texto blanco pequeño sobre turquesa.
+Puesto público: fondo `#F3F8F7`, paneles blancos, texto `#1B2C33`, secundario `#53666B`, acción `#0D6669`; escenario de cámara `#11232B`. Operador conserva fondo `#101B21`, paneles `#17252D`/`#1D3039`, texto `#EDF5F4` y acento `#45D0C5`. Sin parallax, grano, imágenes externas ni métricas ficticias. ADMIN conserva tabla neutra y legible.
 
 ### STORY
 
-Acceso muestra estado de configuración y rol. Operador ve primero cámara y progreso, luego controles y eventos. ADMIN filtra y revisa auditoría; seleccionar un encuentro revela su detalle sin modificar datos.
+El puesto público es pasivo. El operador ve configuración, cámara local, RTX/YOLO, Java y control de sesión. ADMIN gestiona códigos/estaciones y revisa auditoría sin alterar decisiones.
 
 ### FIRST VIEWPORT
 
-En escritorio, navegación petróleo compacta; estación con cámara dominante, ruta local/RTX/Java y progreso visible. ADMIN comienza con título, contexto, filtros y tabla. A menos de 820px la navegación pasa arriba y el contenido se apila; a menos de 560px entradas y controles ocupan una columna y se conserva el estado no clínico.
+El puesto muestra cámara dominante y progreso en escritorio; en móvil apila cámara y pasos. Consolas mantienen estados y controles operables por teclado; en móvil formularios y auditoría se adaptan sin ocultar estados críticos.
 
 ### DIALS
 
@@ -52,4 +53,4 @@ Usar el PNG proporcionado por el usuario sin alterar en acceso, navegación y fa
 
 Mantener los controles en 44px o más, foco visible, operación por teclado, contraste WCAG AA en texto y controles, `prefers-reduced-motion` y adaptación a alto contraste. No cambiar el significado de estados ni añadir acciones decorativas.
 
-FINISH: inspección visual real en escritorio, tablet y móvil, revisión de estados y flujos, pruebas de proyecto, documentación, commit, push y despliegue Vercel autorizado.
+FINISH: inspección visual local en escritorio, tablet y móvil, revisión de estados y flujos, pruebas del proyecto y documentación. No commit, push ni despliegue en esta fase.

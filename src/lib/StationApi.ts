@@ -11,12 +11,15 @@ export interface PublicStationStatus {
   stationId: string | null;
   stationName: string | null;
   activeSession: ActiveStationSession | null;
+  unchangedActiveSession?: boolean;
   resumeError: boolean;
 }
 
 export class StationApi {
-  async status(): Promise<PublicStationStatus> {
-    const response = await fetch('/api/station/status', {
+  async status(knownSessionId?: string | null): Promise<PublicStationStatus> {
+    const url = new URL('/api/station/status', window.location.origin);
+    if (knownSessionId && isUuid(knownSessionId)) url.searchParams.set('knownSessionId', knownSessionId);
+    const response = await fetch(url, {
       method: 'GET', credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
@@ -29,6 +32,7 @@ export class StationApi {
       stationId: typeof payload.stationId === 'string' ? payload.stationId : null,
       stationName: typeof payload.stationName === 'string' ? payload.stationName : null,
       activeSession: isActiveSession(payload.activeSession) ? payload.activeSession : null,
+      unchangedActiveSession: payload.unchangedActiveSession === true,
       resumeError: payload.resumeError === true,
     };
   }
@@ -140,6 +144,10 @@ function isActiveSession(value: unknown): value is ActiveStationSession {
 
 function isProtocol(value: unknown): value is Protocolo {
   return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function errorMessage(code: unknown, status: number): string {

@@ -9,7 +9,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 const messageMapper = new BackendMessageMapper();
 const API_URL = RuntimeEndpointConfig.apiBaseUrl();
 
-export function useWebSocket() {
+export function useWebSocket(ticketProvider?: (sessionId: string) => Promise<string>) {
   const clientRef = useRef<SessionWebSocketClient | null>(null);
   const setStatus = useConnectionStore((state) => state.setStatus);
   const incrementReconnectAttempts = useConnectionStore((state) => state.incrementReconnectAttempts);
@@ -47,9 +47,9 @@ export function useWebSocket() {
       onReconnectAttempt: incrementReconnectAttempts,
       isSessionActive: () => useSessionStore.getState().isActive,
     }, undefined, RuntimeEndpointConfig.websocketBaseUrl(), API_URL,
-    RuntimeEndpointConfig.isCloudMode()
+    ticketProvider ?? (RuntimeEndpointConfig.isCloudMode()
       ? (sessionId) => stationApi.websocketTicket(sessionId)
-      : undefined);
+      : undefined));
   }
 
   const connect = useCallback((sessionId: string, accessToken: string | null = null) => {
