@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/api/operator/claim", "destination": "/api/operator?action=claim" },
+    { "source": "/api/operator/me", "destination": "/api/operator?action=me" },
+    { "source": "/api/operator/session", "destination": "/api/operator?action=session" },
+    { "source": "/api/operator/stop", "destination": "/api/operator?action=stop" },
+    { "source": "/api/operator/ticket", "destination": "/api/operator?action=ticket" }
+  ]
+}
