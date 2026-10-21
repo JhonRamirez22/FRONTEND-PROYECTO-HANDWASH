@@ -69,10 +69,13 @@ export class BrowserRtcCameraRelay {
         if (!disposed && activePeer === peer) onTelemetry?.(parseProducerTelemetry(event.data));
       };
       for (const track of stream.getVideoTracks()) activePeer.addTrack(track, stream);
-      activePeer.onicecandidate = ({ candidate }) => send(candidate
-        ? { type: 'candidate', candidate: candidate.candidate,
-          sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex }
-        : { type: 'candidate', candidate: null });
+      // Java signaling only relays textual candidates and closes the socket on
+      // `candidate: null`; aiortc, as the controlled side, does not need it.
+      activePeer.onicecandidate = ({ candidate }) => {
+        if (!candidate) return;
+        send({ type: 'candidate', candidate: candidate.candidate,
+          sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex });
+      };
       activePeer.onconnectionstatechange = () => {
         if (disposed || activePeer !== peer) return;
         if (activePeer.connectionState === 'connected') onState('connected');
