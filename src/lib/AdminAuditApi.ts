@@ -102,8 +102,19 @@ export interface WashReportRecord {
   finEpochMs: number | null;
   duracionMs: number | null;
   lento: boolean;
-  estadoEvidencia: 'DESACTIVADA' | 'NO_CAPTURADA' | 'CAPTURADA' | null;
+  estadoEvidencia: 'DESACTIVADA' | 'PENDIENTE' | 'NO_CAPTURADA' | 'CAPTURADA' | 'EXPIRADA' | null;
   pasos: WashReportStep[];
+}
+
+export interface EvidenceSettings {
+  /** Deployment flag and bucket/key present; without it the switch cannot be turned on. */
+  deploymentEnabled: boolean;
+  configured: boolean;
+  switchOn: boolean;
+  captureActive: boolean;
+  retentionDays: number;
+  updatedBy: string;
+  updatedAtEpochMs: number;
 }
 
 export interface WashReportFilter {
@@ -120,6 +131,27 @@ export class AdminAuditApi {
     });
     if (filter.resultado) params.set('resultado', filter.resultado);
     return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
+  async evidenceSettings(token: string, signal?: AbortSignal): Promise<EvidenceSettings> {
+    return this.request('/api/v1/admin/evidence', token, signal);
+  }
+
+  async setEvidenceEnabled(token: string, enabled: boolean): Promise<EvidenceSettings> {
+    return this.request('/api/v1/admin/evidence', token, undefined, 'PUT', { enabled });
+  }
+
+  /** Streams the private photo through Java so every view is audited; no public or presigned URL exists. */
+  async evidencePhoto(token: string, sessionId: string, attemptNumber: number, signal?: AbortSignal): Promise<Blob> {
+    const response = await fetch(`${RuntimeEndpointConfig.apiBaseUrl()}/api/v1/admin/evidence/`
+      + `${encodeURIComponent(sessionId)}/${attemptNumber}/photo`, {
+      method: 'GET', credentials: 'omit', cache: 'no-store', signal,
+      headers: { Authorization: `Bearer ${token}`, Accept: 'image/jpeg' },
+    });
+    if (response.status === 401) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
+    if (response.status === 404) throw new Error('La foto ya no existe (venció su retención).');
+    if (!response.ok) throw new Error('No fue posible abrir la foto. Reintenta más tarde.');
+    return response.blob();
   }
 
   async encounters(token: string, limit = 50): Promise<EncounterAuditRecord[]> {

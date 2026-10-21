@@ -6,6 +6,8 @@ const CSRF_COOKIE = 'hw_station_csrf';
 const COOKIE_PATH = '/api/station';
 const CSRF_COOKIE_PATH = '/api';
 const MAX_BODY_BYTES = 4_096;
+const MIN_EVIDENCE_BYTES = 1_024;
+const MAX_EVIDENCE_BYTES = 300 * 1024;
 const UPSTREAM_TIMEOUT_MS = 7_000;
 const RATE_WINDOW_MS = 60_000;
 const rateBuckets = new Map<string, { windowStart: number; count: number }>();
@@ -50,7 +52,8 @@ export async function status(request: Request): Promise<Response> {
       && cookieValue(request, SESSION_COOKIE)) {
       return json({ registered: true, stationId: upstream.body.stationId,
         stationName: upstream.body.stationName, activeSession: null,
-        unchangedActiveSession: true, resumeError: false });
+        unchangedActiveSession: true, resumeError: false,
+        photoEvidence: upstream.body.photoEvidence === true });
     }
     try {
       const resume = await callBackend('/api/v1/stations/resume', 'POST', undefined, credential);
@@ -74,6 +77,7 @@ export async function status(request: Request): Promise<Response> {
     activeSession,
     unchangedActiveSession: false,
     resumeError,
+    photoEvidence: upstream.body.photoEvidence === true,
   }, 200, sessionCookie);
 }
 
@@ -353,6 +357,69 @@ export async function webrtcTicket(request: Request): Promise<Response> {
   }
 }
 
+/**
+ * Forwards the one retained frame of a reported attempt to Java. The BFF only checks shape and size;
+ * Java decides eligibility and re-encodes the image. Nothing is stored or logged here.
+ */
+export async function evidenceUpload(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const sessionToken = cookieValue(request, SESSION_COOKIE);
+  const credential = cookieValue(request, STATION_COOKIE);
+  if (!sessionToken || !credential) return error(401, 'SESSION_CAPABILITY_EXPIRED');
+  const params = new URL(request.url).searchParams;
+  const sessionId = params.get('sessionId');
+  const attempt = Number(params.get('attempt'));
+  if (!isUuid(sessionId) || !Number.isInteger(attempt) || attempt < 1 || attempt > 100_000) {
+    return error(400, 'SESSION_ID_INVALID');
+  }
+  if ((request.headers.get('content-type') ?? '').toLowerCase().split(';')[0]?.trim() !== 'image/jpeg') {
+    return error(415, 'IMAGE_INVALID');
+  }
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_EVIDENCE_BYTES) return error(413, 'IMAGE_TOO_LARGE');
+  let image: Uint8Array;
+  try {
+    image = new Uint8Array(await request.arrayBuffer());
+  } catch {
+    return error(400, 'IMAGE_INVALID');
+  }
+  if (image.byteLength > MAX_EVIDENCE_BYTES) return error(413, 'IMAGE_TOO_LARGE');
+  if (image.byteLength < MIN_EVIDENCE_BYTES || image[0] !== 0xff || image[1] !== 0xd8 || image[2] !== 0xff) {
+    return error(400, 'IMAGE_INVALID');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const station = await callBackend('/api/v1/stations/me', 'GET', undefined, credential);
+    if (!station.ok || !isObject(station.body) || station.body.activeSessionId !== sessionId) {
+      return error(403, 'STATION_SESSION_MISMATCH');
+    }
+    const response = await fetch(new URL(`/api/v1/stations/evidence/${sessionId}/${attempt}`, backendOrigin()), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'image/jpeg',
+        'X-Station-Credential': credential,
+        'X-Session-Token': sessionToken,
+      },
+      body: image,
+      cache: 'no-store',
+      redirect: 'error',
+      signal: controller.signal,
+    });
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(await readLimitedText(response, 2_048)); } catch { parsed = null; }
+    if (response.ok) return json({ stored: true });
+    return upstreamError(response.status, parsed);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function clearSession(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
@@ -520,6 +587,7 @@ function upstreamError(statusCode: number, body: unknown): Response {
     'ID_TOKEN_NO_VALIDO', 'CORREO_NO_VERIFICADO', 'TICKET_WEBSOCKET_NO_DISPONIBLE',
     'STATION_SESSION_MISMATCH', 'ACCESO_NO_AUTORIZADO', 'ASIGNACION_NO_DISPONIBLE',
     'PUESTO_CON_SESION_ACTIVA', 'TURNO_YA_ACTIVO', 'TURNO_INVALIDO', 'TURNO_NO_DISPONIBLE',
+    'FOTO_DESACTIVADA', 'FOTO_NO_ELEGIBLE', 'FOTO_YA_REGISTRADA', 'FOTO_NO_DISPONIBLE', 'IMAGEN_INVALIDA',
   ]);
   const upstreamCode = isObject(body) && typeof body.error === 'string' ? body.error : null;
   const code = upstreamCode && allowedCodes.has(upstreamCode)

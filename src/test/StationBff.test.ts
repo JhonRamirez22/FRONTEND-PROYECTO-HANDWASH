@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   csrf, enroll, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
-  startSession, status, webrtcTicket,
+  evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
 const origin = 'https://frontend-proyecto-handwash.vercel.app';
@@ -391,5 +391,73 @@ describe('station Vercel BFF', () => {
       expect(response.headers.get('set-cookie')).toContain('hw_station_session=;');
       expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe('DELETE');
     });
+  });
+});
+
+describe('evidence upload BFF', () => {
+  const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+  const sessionCookie = 'session_capability_' + 't'.repeat(40);
+  const headers = (extra: Record<string, string> = {}) => ({
+    Origin: origin, 'X-CSRF-Token': csrfToken, 'Content-Type': 'image/jpeg',
+    'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250)}-${Math.random()}`,
+    Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionCookie}; hw_station_csrf=${csrfToken}`,
+    ...extra,
+  });
+  const jpeg = (size = 2_000) => { const bytes = new Uint8Array(size); bytes.set([0xff, 0xd8, 0xff]); return bytes; };
+  const upload = (body: Uint8Array, query = `?sessionId=${sessionId}&attempt=2`, extra: Record<string, string> = {}) =>
+    evidenceUpload(new Request(`https://frontend-proyecto-handwash.vercel.app/api/station/evidence${query}`,
+      { method: 'POST', headers: headers(extra), body }));
+
+  beforeEach(() => {
+    vi.stubEnv('HANDWASH_PUBLIC_ORIGIN', origin);
+    vi.stubEnv('HANDWASH_BACKEND_ORIGIN', 'https://java.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  it('forwards the frame with the station credential and session capability', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ stored: true }), { status: 200 }));
+
+    const response = await upload(jpeg());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ stored: true });
+    const [url, init] = vi.mocked(fetch).mock.calls[1];
+    expect(String(url)).toBe(`https://java.example.com/api/v1/stations/evidence/${sessionId}/2`);
+    const sent = init?.headers as Record<string, string>;
+    expect(sent['X-Station-Credential']).toBe(stationCredential);
+    expect(sent['X-Session-Token']).toBe(sessionCookie);
+    expect(sent['Content-Type']).toBe('image/jpeg');
+  });
+
+  it('rejects anything that is not a bounded JPEG before contacting Java', async () => {
+    expect((await upload(new Uint8Array(2_000))).status).toBe(400);
+    expect((await upload(jpeg(100))).status).toBe(400);
+    expect((await upload(jpeg(301 * 1024))).status).toBe(413);
+    expect((await upload(jpeg(), undefined, { 'Content-Type': 'image/png' })).status).toBe(415);
+    expect((await upload(jpeg(), '?sessionId=nope&attempt=2')).status).toBe(400);
+    expect((await upload(jpeg(), `?sessionId=${sessionId}&attempt=0`)).status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('needs origin, CSRF and the session capability', async () => {
+    expect((await upload(jpeg(), undefined, { Origin: 'https://evil.example' })).status).toBe(403);
+    expect((await upload(jpeg(), undefined, { 'X-CSRF-Token': 'b'.repeat(64) })).status).toBe(403);
+    expect((await upload(jpeg(), undefined, { Cookie: `hw_station_csrf=${csrfToken}` })).status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a session that is not the station active one and relays Java refusals by code', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: 'other' }), { status: 200 }));
+    expect((await upload(jpeg())).status).toBe(403);
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'FOTO_DESACTIVADA', leaked: 'x' }), { status: 403 }));
+    const refused = await upload(jpeg());
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ code: 'FOTO_DESACTIVADA' });
   });
 });

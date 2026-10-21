@@ -4,12 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { AdminWashReports } from '@/components/AdminWashReports';
 import type { WashReportRecord } from '@/lib/AdminAuditApi';
 
-const { auth, washReports } = vi.hoisted(() => ({
+const { auth, washReports, evidenceSettings, setEvidenceEnabled, evidencePhoto } = vi.hoisted(() => ({
   auth: { getAccessToken: vi.fn() },
   washReports: vi.fn(),
+  evidenceSettings: vi.fn(),
+  setEvidenceEnabled: vi.fn(),
+  evidencePhoto: vi.fn(),
 }));
 vi.mock('@/lib/adminAuth', () => ({ cognitoAdminAuth: auth }));
-vi.mock('@/lib/AdminAuditApi', () => ({ AdminAuditApi: class { washReports = washReports; } }));
+vi.mock('@/lib/AdminAuditApi', () => ({ AdminAuditApi: class { washReports = washReports; evidenceSettings = evidenceSettings; setEvidenceEnabled = setEvidenceEnabled; evidencePhoto = evidencePhoto; } }));
 
 const NOW = new Date(2026, 9, 21, 15, 30).getTime();
 const steps = (validated: number) => ['PASO_1_PALMAS', 'PASO_2_DORSOS', 'PASO_3_INTERDIGITALES',
@@ -25,11 +28,17 @@ function report(overrides: Partial<WashReportRecord>): WashReportRecord {
   };
 }
 
+const settings = (overrides: Record<string, unknown>) => ({
+  deploymentEnabled: true, configured: true, switchOn: false, captureActive: false, retentionDays: 30,
+  updatedBy: 'SYSTEM', updatedAtEpochMs: 0, ...overrides,
+});
+
 describe('AdminWashReports', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
     auth.getAccessToken.mockReturnValue('access-token');
+    evidenceSettings.mockResolvedValue(settings({}));
   });
 
   it('loads the last seven local days and shows exact times, outcome, slow mark and missing steps', async () => {
@@ -78,5 +87,61 @@ describe('AdminWashReports', () => {
     render(<AdminWashReports onSignOut={onSignOut} now={() => NOW} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Sesión ADMIN vencida');
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it('opens a captured photo through the audited endpoint and revokes the object URL on close', async () => {
+    washReports.mockResolvedValue([report({ resultado: 'REPORTADO', motivo: 'HANDS_ABSENT', pasos: steps(2),
+      estadoEvidencia: 'CAPTURADA' })]);
+    evidencePhoto.mockResolvedValue(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }));
+    const create = vi.fn(() => 'blob:photo');
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
+    const user = userEvent.setup();
+    render(<AdminWashReports onSignOut={vi.fn()} now={() => NOW} />);
+
+    await user.click(await screen.findByRole('button', { name: /Ver foto/ }));
+
+    expect(evidencePhoto).toHaveBeenCalledWith('access-token', '11111111-2222-3333-4444-555555555555', 1);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'blob:photo');
+    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(revoke).toHaveBeenCalledWith('blob:photo');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows no photo button for other states and explains expired photos', async () => {
+    washReports.mockResolvedValue([
+      report({ resultado: 'REPORTADO', estadoEvidencia: 'EXPIRADA', pasos: steps(2) }),
+      report({ sessionId: 'abcdef12-0000-0000-0000-000000000000', resultado: 'REPORTADO', estadoEvidencia: 'NO_CAPTURADA', pasos: steps(2) }),
+    ]);
+    render(<AdminWashReports onSignOut={vi.fn()} now={() => NOW} />);
+
+    expect(await screen.findByText('Venció (30 días)')).toBeInTheDocument();
+    expect(screen.getByText('No capturada')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ver foto/ })).not.toBeInTheDocument();
+  });
+
+  it('turns the capture switch on and off from the ADMIN panel', async () => {
+    washReports.mockResolvedValue([]);
+    setEvidenceEnabled.mockResolvedValueOnce(settings({ switchOn: true, captureActive: true }))
+      .mockResolvedValueOnce(settings({}));
+    const user = userEvent.setup();
+    render(<AdminWashReports onSignOut={vi.fn()} now={() => NOW} />);
+
+    expect(await screen.findByText(/Foto de lavados reportados: apagada/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Encender captura' }));
+    expect(setEvidenceEnabled).toHaveBeenLastCalledWith('access-token', true);
+    expect(await screen.findByText(/Foto de lavados reportados: activa/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Apagar captura' }));
+    expect(setEvidenceEnabled).toHaveBeenLastCalledWith('access-token', false);
+    expect(await screen.findByText(/Foto de lavados reportados: apagada/)).toBeInTheDocument();
+  });
+
+  it('cannot switch on when the deployment does not allow photos', async () => {
+    washReports.mockResolvedValue([]);
+    evidenceSettings.mockResolvedValue(settings({ deploymentEnabled: false, configured: false }));
+    render(<AdminWashReports onSignOut={vi.fn()} now={() => NOW} />);
+
+    expect(await screen.findByRole('button', { name: 'Encender captura' })).toBeDisabled();
   });
 });

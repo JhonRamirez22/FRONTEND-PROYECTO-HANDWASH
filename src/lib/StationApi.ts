@@ -13,6 +13,8 @@ export interface PublicStationStatus {
   activeSession: ActiveStationSession | null;
   unchangedActiveSession?: boolean;
   resumeError: boolean;
+  /** True only while Java has photo capture active; the kiosk shows its notice and opens the Mac camera. */
+  photoEvidence: boolean;
 }
 
 export interface WebRtcAccess {
@@ -52,6 +54,7 @@ export class StationApi {
       activeSession: isActiveSession(payload.activeSession) ? payload.activeSession : null,
       unchangedActiveSession: payload.unchangedActiveSession === true,
       resumeError: payload.resumeError === true,
+      photoEvidence: payload.photoEvidence === true,
     };
   }
 
@@ -121,6 +124,21 @@ export class StationApi {
       throw new Error('Java no entregó un ticket WebRTC válido para esta sesión.');
     }
     return { ticket: payload.ticket, iceServers: parseIceServers(payload.iceServers) };
+  }
+
+  /** Sends the one retained frame of a reported attempt; Java decides if it may be stored. */
+  async uploadEvidence(sessionId: string, attemptNumber: number, image: Blob): Promise<void> {
+    if (!isUuid(sessionId) || !Number.isInteger(attemptNumber) || attemptNumber < 1) return;
+    const csrf = await this.csrfToken();
+    const url = new URL('/api/station/evidence', window.location.origin);
+    url.searchParams.set('sessionId', sessionId);
+    url.searchParams.set('attempt', String(attemptNumber));
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'image/jpeg', 'X-CSRF-Token': csrf },
+      body: image,
+    });
+    if (!response.ok) throw new Error('La foto del reporte no se pudo registrar.');
   }
 
   async clearSession(): Promise<void> {

@@ -6,6 +6,8 @@ import { useSession } from '@/hooks/useSession';
 import { useStationCamera } from '@/hooks/useStationCamera';
 import { useCameraRecovery } from '@/hooks/useCameraRecovery';
 import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
+import { usePresenceCamera } from '@/hooks/usePresenceCamera';
+import { usePresenceEvidence } from '@/hooks/usePresenceEvidence';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { LiveCameraFeed } from './LiveCameraFeed';
@@ -17,6 +19,7 @@ const deployment = new DeploymentStatusService();
 export function KioskScreen() {
   const [gate, setGate] = useState<Gate>('checking');
   const [stationName, setStationName] = useState('Puesto de lavado');
+  const [photoEvidence, setPhotoEvidence] = useState(false);
   const [clinicalStatus, setClinicalStatus] = useState(DeploymentStatusService.unverified());
   const { stream } = useStationCamera();
   const { resume, disconnect } = useSession();
@@ -28,6 +31,10 @@ export function KioskScreen() {
   const supervised = useRelaySupervisor(active ? sessionId : null, stream);
   const { state: relayStatus, telemetry } = supervised;
   useCameraRecovery(gate === 'ready' && active, stream);
+  const frictionEvaluation = useSessionStore((state) => state.frictionEvaluation);
+  const photoActive = photoEvidence && gate === 'ready' && active;
+  const presenceStream = usePresenceCamera(photoActive);
+  usePresenceEvidence(photoActive, presenceStream, sessionId, frictionEvaluation);
   const health = evaluateStationHealth({
     gate, sessionActive: active, hasStream: Boolean(stream),
     // The socket reports "reconnecting" during each retry; after a failed attempt that is still an outage.
@@ -54,6 +61,7 @@ export function KioskScreen() {
         }
       } else {
         setStationName(status.stationName);
+        setPhotoEvidence(status.photoEvidence);
         if (status.resumeError) {
           setGate('resume-error');
         } else if (status.unchangedActiveSession && currentSessionId) {
@@ -113,7 +121,15 @@ export function KioskScreen() {
         </div>
         <KioskProgress />
       </div>
-      <footer className="kiosk-footer">{stationName} · Piloto no clínico · no se guarda video ni imágenes</footer>
+      {photoEvidence && (
+        <p className="kiosk-photo-notice" role="note">
+          Este puesto toma una foto solo si el lavado queda incompleto y se reporta. Los lavados correctos no guardan imágenes.
+        </p>
+      )}
+      <footer className="kiosk-footer">
+        {stationName} · Piloto no clínico · {photoEvidence
+          ? 'no se guarda video; foto solo en lavados reportados' : 'no se guarda video ni imágenes'}
+      </footer>
     </main>
   );
 }

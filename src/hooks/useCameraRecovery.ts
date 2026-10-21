@@ -13,7 +13,8 @@ const MAX_RETRY_MS = 60_000;
  * permission for this site; otherwise the retry simply keeps waiting.
  */
 export function useCameraRecovery(needed: boolean, stream: MediaStream | null,
-  open: () => Promise<MediaStream> = defaultOpen): void {
+  open: () => Promise<MediaStream> = defaultOpen,
+  adopt: (stream: MediaStream) => void = StationCameraSession.set): void {
   useEffect(() => {
     if (!needed || stream) return;
     let cancelled = false;
@@ -23,7 +24,7 @@ export function useCameraRecovery(needed: boolean, stream: MediaStream | null,
       try {
         const opened = await open();
         if (cancelled) stopTracks(opened);
-        else StationCameraSession.set(opened);
+        else adopt(opened);
       } catch {
         if (cancelled) return;
         timer = window.setTimeout(() => void tryOpen(), Math.min(MAX_RETRY_MS, BASE_RETRY_MS * 2 ** attempt));
@@ -35,5 +36,5 @@ export function useCameraRecovery(needed: boolean, stream: MediaStream | null,
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [needed, stream, open]);
+  }, [needed, stream, open, adopt]);
 }

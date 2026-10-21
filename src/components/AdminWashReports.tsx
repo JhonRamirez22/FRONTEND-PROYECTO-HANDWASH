@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Check, ClipboardCheck, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { Camera, Check, ClipboardCheck, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { AdminAuditApi, type WashOutcome, type WashReportRecord } from '@/lib/AdminAuditApi';
 import { cognitoAdminAuth } from '@/lib/adminAuth';
 import { STEP_LABELS } from '@/types';
+import { AdminEvidenceSwitch } from './AdminEvidenceSwitch';
 
 const api = new AdminAuditApi();
 const DAY_MS = 86_400_000;
@@ -13,6 +14,11 @@ const OUTCOME_LABELS: Record<WashOutcome, string> = {
 const OUTCOME_TONES: Record<WashOutcome, string> = {
   CORRECTO: 'admin-status-pill--completed', REPORTADO: 'admin-status-pill--reported',
   REINICIADO: 'admin-status-pill--interrupted', INTERRUMPIDO: 'admin-status-pill--deleted',
+};
+
+const EVIDENCE_LABELS: Record<NonNullable<WashReportRecord['estadoEvidencia']>, string> = {
+  DESACTIVADA: 'Desactivada', PENDIENTE: 'Pendiente', NO_CAPTURADA: 'No capturada',
+  CAPTURADA: 'Capturada', EXPIRADA: 'Venció (30 días)',
 };
 
 /** yyyy-mm-dd in the browser's local time zone. */
@@ -50,6 +56,35 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
+  const [photo, setPhoto] = useState<{ url: string; label: string } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState<string | null>(null);
+
+  const closePhoto = useCallback(() => {
+    setPhoto((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
+
+  async function viewPhoto(report: WashReportRecord) {
+    const token = cognitoAdminAuth.getAccessToken();
+    if (!token) { onSignOut(); return; }
+    const key = `${report.sessionId}-${report.attemptNumber}`;
+    setPhotoLoading(key);
+    setPhotoError(null);
+    try {
+      const blob = await api.evidencePhoto(token, report.sessionId, report.attemptNumber);
+      closePhoto();
+      setPhoto({ url: URL.createObjectURL(blob), label: `${formatExact(report.finEpochMs)} · #${report.attemptNumber}` });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Error inesperado.';
+      setPhotoError(message);
+      if (message.includes('Sesión ADMIN vencida')) onSignOut();
+    } finally {
+      setPhotoLoading(null);
+    }
+  }
 
   const load = useCallback(async () => {
     const desde = startOfLocalDay(from);
@@ -95,6 +130,7 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
     void initial.current();
     return () => request.current?.abort();
   }, []);
+  useEffect(() => closePhoto, [closePhoto]);
 
   function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,6 +149,7 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
         </div>
         <span className="admin-count" aria-label={`${reports.length} lavados`}>{reports.length}</span>
       </div>
+      <AdminEvidenceSwitch onSignOut={onSignOut} />
       <form className="wash-report-filters" onSubmit={apply} aria-label="Filtrar lavados">
         <label>Desde<input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value)} required /></label>
         <label>Hasta<input type="date" value={to} min={from} onChange={(event) => setTo(event.target.value)} required /></label>
@@ -166,8 +203,13 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
                       )}
                     </td>
                     <td>{report.resultado !== 'REPORTADO' ? '—'
-                      : report.estadoEvidencia === 'CAPTURADA' ? 'Capturada'
-                        : report.estadoEvidencia === 'NO_CAPTURADA' ? 'No capturada' : 'Desactivada'}</td>
+                      : report.estadoEvidencia === 'CAPTURADA' ? (
+                        <button type="button" className="button-quiet" disabled={photoLoading !== null}
+                          onClick={() => void viewPhoto(report)}>
+                          {photoLoading === `${report.sessionId}-${report.attemptNumber}`
+                            ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera size={14} aria-hidden="true" />} Ver foto
+                        </button>
+                      ) : EVIDENCE_LABELS[report.estadoEvidencia ?? 'DESACTIVADA']}</td>
                     <td className="whitespace-nowrap tabular-nums">{formatExact(report.inicioEpochMs)}</td>
                     <td><code>{report.sessionId.slice(0, 8)}</code> · #{report.attemptNumber}</td>
                   </tr>
@@ -177,10 +219,20 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
           </table>
         </div>
       )}
+      {photoError && <p className="wash-report-error" role="alert">{photoError}</p>}
+      {photo && (
+        <div className="evidence-dialog" role="dialog" aria-modal="true" aria-label={`Foto del reporte ${photo.label}`}
+          onClick={closePhoto}>
+          <figure onClick={(event) => event.stopPropagation()}>
+            <img src={photo.url} alt={`Foto del lavado reportado ${photo.label}`} />
+            <figcaption>{photo.label} · vista auditada · no la compartas</figcaption>
+            <button type="button" className="button-quiet" autoFocus onClick={closePhoto}>Cerrar</button>
+          </figure>
+        </div>
+      )}
       <p className="admin-data-footnote">
         “Reportado” significa que la persona inició el lavado y se fue sin validar los seis movimientos. Las fallas técnicas
-        se registran como “Interrumpido” y nunca como reporte. La captura de foto está desactivada hasta tener cámara de
-        presencia y aprobación institucional.
+        se registran como “Interrumpido” y nunca como reporte. La foto solo existe si la captura está encendida y se conserva 30 días.
       </p>
     </section>
   );
