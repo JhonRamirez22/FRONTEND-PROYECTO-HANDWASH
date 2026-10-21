@@ -15,6 +15,24 @@ export interface PublicStationStatus {
   resumeError: boolean;
 }
 
+export interface WebRtcAccess {
+  ticket: string;
+  /** Empty means LAN only; TURN entries carry short-lived credentials from Java. */
+  iceServers: RTCIceServer[];
+}
+
+function parseIceServers(value: unknown): RTCIceServer[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): RTCIceServer[] => {
+    if (typeof entry !== 'object' || entry === null || !Array.isArray((entry as { urls?: unknown }).urls)) return [];
+    const { urls, username, credential } = entry as { urls: unknown[]; username?: unknown; credential?: unknown };
+    const safeUrls = urls.filter((url): url is string => typeof url === 'string' && /^(stun|turn|turns):/.test(url));
+    if (safeUrls.length === 0) return [];
+    return [typeof username === 'string' && typeof credential === 'string'
+      ? { urls: safeUrls, username, credential } : { urls: safeUrls }];
+  });
+}
+
 export class StationApi {
   async status(knownSessionId?: string | null): Promise<PublicStationStatus> {
     const url = new URL('/api/station/status', window.location.origin);
@@ -91,7 +109,7 @@ export class StationApi {
     return payload.ticket;
   }
 
-  async webrtcTicket(sessionId: string): Promise<string> {
+  async webrtcAccess(sessionId: string): Promise<WebRtcAccess> {
     const csrf = await this.csrfToken();
     const response = await fetch('/api/station/webrtc-ticket', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -102,7 +120,7 @@ export class StationApi {
     if (!response.ok || typeof payload.ticket !== 'string' || payload.ticket.length < 32) {
       throw new Error('Java no entregó un ticket WebRTC válido para esta sesión.');
     }
-    return payload.ticket;
+    return { ticket: payload.ticket, iceServers: parseIceServers(payload.iceServers) };
   }
 
   async clearSession(): Promise<void> {

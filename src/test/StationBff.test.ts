@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorClaim, operatorStartSession, startSession, status,
+  csrf, enroll, operatorClaim, operatorStartSession, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
 const origin = 'https://frontend-proyecto-handwash.vercel.app';
@@ -239,5 +239,59 @@ describe('station Vercel BFF', () => {
     expect(JSON.stringify(payload)).not.toContain('must-not-leak');
     expect(response.headers.get('set-cookie')).toContain('hw_station_session=');
     expect(response.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
+  });
+
+  describe('WebRTC ticket with ICE servers', () => {
+    const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+    const sessionCookie = 'session_capability_' + 't'.repeat(40);
+    const ticket = 'k'.repeat(43);
+
+    async function ticketWith(upstream: Record<string, unknown>) {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          ticket, peerRole: 'BROWSER', expiresAt: new Date(Date.now() + 30_000).toISOString(), ...upstream,
+        }), { status: 200 }));
+      return webrtcTicket(request('/api/station/webrtc-ticket', 'POST', { sessionId }, {
+        Origin: origin, 'X-CSRF-Token': csrfToken,
+        Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionCookie}; hw_station_csrf=${csrfToken}`,
+      }));
+    }
+
+    it('re-emits only allowlisted STUN/TURN fields from Java', async () => {
+      const response = await ticketWith({ iceServers: [
+        { urls: ['stun:stun.example.org:3478'], leaked: 'x' },
+        { urls: ['turns:turn.example.org:443?transport=tcp'], username: '1792603600:s:BROWSER', credential: 'cred=', secret: 'no' },
+      ] });
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(payload.ticket).toBe(ticket);
+      expect(payload.iceServers).toEqual([
+        { urls: ['stun:stun.example.org:3478'] },
+        { urls: ['turns:turn.example.org:443?transport=tcp'], username: '1792603600:s:BROWSER', credential: 'cred=' },
+      ]);
+      expect(JSON.stringify(payload)).not.toContain('leaked');
+      expect(JSON.stringify(payload)).not.toContain('"secret"');
+    });
+
+    it('treats a Java build without iceServers as LAN only', async () => {
+      const response = await ticketWith({});
+      expect(response.status).toBe(200);
+      expect((await response.json() as Record<string, unknown>).iceServers).toEqual([]);
+    });
+
+    it.each([
+      ['a non-ICE scheme', [{ urls: ['http://evil.example'] }]],
+      ['credentials inside the URL', [{ urls: ['turn:user:pass@turn.example.org'], username: 'u', credential: 'c' }]],
+      ['TURN without credentials', [{ urls: ['turn:turn.example.org:3478'] }]],
+      ['STUN with credentials', [{ urls: ['stun:stun.example.org'], username: 'u', credential: 'c' }]],
+      ['too many servers', Array.from({ length: 5 }, () => ({ urls: ['stun:stun.example.org'] }))],
+      ['a non-array value', { urls: ['stun:stun.example.org'] }],
+    ])('rejects %s instead of forwarding it to the browser', async (_name, iceServers) => {
+      const response = await ticketWith({ iceServers });
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({ code: 'WEBRTC_TICKET_INVALID' });
+    });
   });
 });

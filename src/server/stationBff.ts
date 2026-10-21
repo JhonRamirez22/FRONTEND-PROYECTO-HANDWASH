@@ -270,7 +270,10 @@ export async function webrtcTicket(request: Request): Promise<Response> {
       || !Number.isFinite(Date.parse(result.body.expiresAt))) {
       return error(502, 'WEBRTC_TICKET_INVALID');
     }
-    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt });
+    // Older Java builds omit iceServers (LAN only); a present but malformed list is rejected.
+    const iceServers = result.body.iceServers === undefined ? [] : sanitizeIceServers(result.body.iceServers);
+    if (iceServers === null) return error(502, 'WEBRTC_TICKET_INVALID');
+    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt, iceServers });
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
   }
@@ -523,6 +526,27 @@ function safeOperatorGrant(value: unknown): JsonObject | null {
     revokedAtEpochMs: value.revokedAtEpochMs,
   };
 }
+/** Strict allowlist: re-emits only urls/username/credential and only stun:/turn:/turns: URLs. */
+function sanitizeIceServers(value: unknown): JsonObject[] | null {
+  if (!Array.isArray(value) || value.length > 4) return null;
+  const servers: JsonObject[] = [];
+  for (const entry of value) {
+    if (!isObject(entry) || !Array.isArray(entry.urls) || entry.urls.length < 1 || entry.urls.length > 4) return null;
+    const urls: string[] = [];
+    for (const url of entry.urls) {
+      if (typeof url !== 'string' || url.length > 300 || !/^(stun|turn|turns):[^\s@]+$/.test(url)) return null;
+      urls.push(url);
+    }
+    const turn = urls.some((url) => !url.startsWith('stun:'));
+    const username = entry.username ?? null;
+    const credential = entry.credential ?? null;
+    const credentialOk = (item: unknown) => typeof item === 'string' && item.length > 0 && item.length <= 256;
+    if (turn ? !credentialOk(username) || !credentialOk(credential) : username !== null || credential !== null) return null;
+    servers.push(turn ? { urls, username, credential } : { urls });
+  }
+  return servers;
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

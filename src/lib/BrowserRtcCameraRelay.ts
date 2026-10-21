@@ -45,7 +45,7 @@ export class BrowserRtcCameraRelay {
   async connect(sessionId: string, stream: MediaStream,
     onState: (state: CameraRelayState) => void, signal?: AbortSignal,
     onTelemetry?: (status: ProducerTelemetry | null) => void): Promise<() => void> {
-    const ticket = await stationApi.webrtcTicket(sessionId);
+    const { ticket, iceServers } = await stationApi.webrtcAccess(sessionId);
     if (signal?.aborted) throw new DOMException('Enlace WebRTC cancelado', 'AbortError');
     const wsBase = new URL(RuntimeEndpointConfig.websocketBaseUrl(), window.location.origin);
     wsBase.protocol = wsBase.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -62,17 +62,20 @@ export class BrowserRtcCameraRelay {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
     };
     const createPeer = () => {
-      const activePeer = new RTCPeerConnection({ iceServers: [] });
+      const activePeer = new RTCPeerConnection({ iceServers });
       peer = activePeer;
       const statusChannel = activePeer.createDataChannel('producer-status');
       statusChannel.onmessage = (event) => {
         if (!disposed && activePeer === peer) onTelemetry?.(parseProducerTelemetry(event.data));
       };
       for (const track of stream.getVideoTracks()) activePeer.addTrack(track, stream);
-      activePeer.onicecandidate = ({ candidate }) => send(candidate
-        ? { type: 'candidate', candidate: candidate.candidate,
-          sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex }
-        : { type: 'candidate', candidate: null });
+      // Java signaling only relays textual candidates and closes the socket on
+      // `candidate: null`; aiortc, as the controlled side, does not need it.
+      activePeer.onicecandidate = ({ candidate }) => {
+        if (!candidate) return;
+        send({ type: 'candidate', candidate: candidate.candidate,
+          sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex });
+      };
       activePeer.onconnectionstatechange = () => {
         if (disposed || activePeer !== peer) return;
         if (activePeer.connectionState === 'connected') onState('connected');
