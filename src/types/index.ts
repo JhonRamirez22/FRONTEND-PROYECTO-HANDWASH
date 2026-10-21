@@ -136,6 +136,23 @@ export interface FrictionEvaluation {
   secuenciaValidada: boolean;
   persistenciaPendiente: boolean;
   ultimoResultado: { numeroIntento: number; resultado: string; motivo: string | null; pasos: FrictionStepEvaluation[] } | null;
+  guia: KioskGuide;
+}
+
+/** Closed catalog of Java kiosk instructions; the kiosk only translates them. */
+export const KIOSK_GUIDE_CODES = [
+  'INICIA_CON_PALMAS', 'CONTINUA_PASO', 'CAMBIA_A_PASO', 'VUELVE_A_PASO', 'SIGUE_EL_ORDEN',
+  'MUESTRA_AMBAS_MANOS', 'MANTEN_EL_MOVIMIENTO', 'LAVADO_COMPLETO', 'LAVADO_INCOMPLETO',
+  'REINICIA_LAVADO', 'ESPERA_TECNICA',
+] as const;
+export type KioskGuideCode = typeof KIOSK_GUIDE_CODES[number];
+export const KIOSK_GUIDE_TONES = ['INFO', 'CORRECCION', 'EXITO', 'ALERTA', 'TECNICO'] as const;
+export type KioskGuideTone = typeof KIOSK_GUIDE_TONES[number];
+export interface KioskGuide {
+  codigo: KioskGuideCode;
+  paso: HandWashStep | null;
+  faltanteMs: number | null;
+  tono: KioskGuideTone;
 }
 export interface FrictionStepEvaluation {
   paso: HandWashStep;

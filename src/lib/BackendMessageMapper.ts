@@ -7,7 +7,7 @@ import type {
   SoapEvidence,
   FrictionEvaluation,
 } from '@/types';
-import { FRICTION_STEPS } from '@/types';
+import { FRICTION_STEPS, KIOSK_GUIDE_CODES, KIOSK_GUIDE_TONES } from '@/types';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -113,6 +113,11 @@ export class BackendMessageMapper {
       || !integer(value.ultimoResultado.numeroIntento, 1) || typeof value.ultimoResultado.resultado !== 'string'
       || !(value.ultimoResultado.motivo === null || typeof value.ultimoResultado.motivo === 'string')
       || !steps(value.ultimoResultado.pasos))) return undefined;
+    const guide = value.guia;
+    if (!this.isRecord(guide) || !KIOSK_GUIDE_CODES.includes(guide.codigo as typeof KIOSK_GUIDE_CODES[number])
+      || !KIOSK_GUIDE_TONES.includes(guide.tono as typeof KIOSK_GUIDE_TONES[number])
+      || !(guide.paso === null || FRICTION_STEPS.includes(guide.paso as HandWashStep))
+      || !(guide.faltanteMs === null || integer(guide.faltanteMs))) return undefined;
     if (value.secuenciaValidada && (value.persistenciaPendiente || value.estadoIntento !== 'COMPLETO_PARCIAL'
       || !(value.pasos as JsonRecord[]).every((step) => step.estado === 'VALIDADO'))) return undefined;
     return value as unknown as FrictionEvaluation;

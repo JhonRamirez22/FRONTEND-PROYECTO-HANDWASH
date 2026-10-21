@@ -1,6 +1,9 @@
 import { Check } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { FRICTION_STEPS, STEP_LABELS, WHO_STEPS } from '@/types';
+import { formatSeconds } from '@/lib/KioskGuideCatalog';
+import { KioskGuidance } from './KioskGuidance';
+import { KioskWashSummary } from './KioskWashSummary';
 
 export function KioskProgress() {
   const active = useSessionStore((state) => state.isActive);
@@ -26,16 +29,9 @@ export function KioskProgress() {
             : active ? 'Estado recibido de Java' : summary ? 'Sesión finalizada' : 'Esperando sesión'}
         </span>
       </div>
-      {evaluation?.motivoRecuperacion && evaluation.estadoIntento !== 'ESPERANDO_INICIO' && (
-        <p role="status" className="kiosk-scope-note">
-          {evaluation.motivoRecuperacion === 'STEP_TOO_SHORT' || evaluation.motivoRecuperacion === 'STEP_OUT_OF_SEQUENCE'
-            ? `Continúa con ${STEP_LABELS[evaluation.pasoEsperado]}. Los pasos validados se conservan.`
-            : evaluation.motivoRecuperacion === 'AUDIT_STORAGE_UNAVAILABLE' ? 'Esperando guardar el resultado. Avisa al operador.'
-            : evaluation.estadoIntento === 'INTERRUMPIDO' ? 'Intento interrumpido. Esperando un nuevo ciclo.'
-            : 'Pausa de observación. Mantén ambas manos visibles para continuar.'}
-        </p>
-      )}
-      <ol>
+      {active && evaluation && <KioskGuidance evaluation={evaluation} />}
+      {evaluation && <KioskWashSummary evaluation={evaluation} />}
+      {!(evaluation && (evaluation.estadoIntento === 'COMPLETO_PARCIAL' || evaluation.estadoIntento === 'INTERRUMPIDO')) && <ol>
         {steps.map((step, index) => {
           const assessment = evaluation?.pasos.find((item) => item.paso === step);
           const observed = assessment ? assessment.estado === 'VALIDADO' : active && currentIndex >= 0 && index < currentIndex;
@@ -51,12 +47,13 @@ export function KioskProgress() {
                 <span className="kiosk-step-label">{STEP_LABELS[step] ?? step}</span>
                 {currentStep && <small>{assessment?.estado === 'REQUIERE_REPETICION' ? 'Corrección pendiente' : 'En curso'} · Java</small>}
                 {observed && <small>{assessment ? 'Validado' : 'Observado'} · Java</small>}
-                {assessment && <small>{(assessment.tiempoAcreditadoMs / 1000).toFixed(1)} / {assessment.minimoRequeridoMs / 1000} s observados</small>}
+                {assessment && assessment.estado !== 'PENDIENTE'
+                  && <small>{formatSeconds(assessment.tiempoAcreditadoMs)} / {assessment.minimoRequeridoMs / 1000} s observados</small>}
               </span>
             </li>
           );
         })}
-      </ol>
+      </ol>}
       <p className="kiosk-scope-note">Progreso informativo; este piloto no certifica cumplimiento clínico.</p>
     </section>
   );
