@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorClaim, operatorStartSession, startSession, status, webrtcTicket,
+  csrf, enroll, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
+  startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
 const origin = 'https://frontend-proyecto-handwash.vercel.app';
@@ -292,6 +293,68 @@ describe('station Vercel BFF', () => {
       const response = await ticketWith({ iceServers });
       expect(response.status).toBe(502);
       expect(await response.json()).toEqual({ code: 'WEBRTC_TICKET_INVALID' });
+    });
+  });
+
+  describe('operator shift (unattended mode)', () => {
+    const bearer = 'Bearer aaaa.bbbb.cccc';
+    // The BFF rate limiter is keyed by client address: give every request its own.
+    let address = 0;
+    const fresh = (headers: Record<string, string>) => ({ ...headers, 'X-Forwarded-For': `198.51.100.${++address}` });
+    const mutation = () => fresh({ Origin: origin, Authorization: bearer, 'X-CSRF-Token': csrfToken, Cookie: `hw_station_csrf=${csrfToken}` });
+    const open = { active: true, protocolo: 'AGUA_Y_JABON', startedAtEpochMs: 1_000, endsAtEpochMs: 9_000 };
+
+    it('reports the shift with only the fields the kiosk needs', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...open, secret: 'x' }), { status: 200 }));
+      const response = await operatorShiftStatus(request('/api/operator?action=shift', 'GET', undefined, { Authorization: bearer }));
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(open);
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe('https://java.example.com/api/v1/operator/shift');
+    });
+
+    it('requires a bearer token and rejects malformed Java answers', async () => {
+      expect((await operatorShiftStatus(request('/api/operator?action=shift', 'GET'))).status).toBe(401);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      for (const bad of [{ active: 'yes' }, { active: true, protocolo: 'OTRO', startedAtEpochMs: 1, endsAtEpochMs: 2 },
+        { active: true, protocolo: 'AGUA_Y_JABON', startedAtEpochMs: null, endsAtEpochMs: 2 }]) {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(bad), { status: 200 }));
+        expect((await operatorShiftStatus(request('/api/operator?action=shift', 'GET', undefined, { Authorization: bearer }))).status).toBe(502);
+      }
+    });
+
+    it('starts a shift with validated hours and forwards the Java conflict code', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(open), { status: 200 }));
+      const ok = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 10, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ hours: 10, protocolo: 'AGUA_Y_JABON' });
+
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'TURNO_YA_ACTIVO' }), { status: 409 }));
+      const conflict = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 8, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(conflict.status).toBe(409);
+      expect(await conflict.json()).toEqual({ code: 'TURNO_YA_ACTIVO' });
+    });
+
+    it.each([0, 17, 1.5, '8', null, undefined])('rejects %s hours without contacting Java', async (hours) => {
+      const response = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(response.status).toBe(400);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('protects start and stop with origin and CSRF', async () => {
+      const noCsrf = () => fresh({ Origin: origin, Authorization: bearer });
+      expect((await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 8, protocolo: 'AGUA_Y_JABON' }, noCsrf()))).status).toBe(403);
+      expect((await operatorShiftStop(request('/api/operator?action=shift-stop', 'POST', {}, noCsrf()))).status).toBe(403);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('stops the shift through Java and clears the session capability cookie', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const response = await operatorShiftStop(request('/api/operator?action=shift-stop', 'POST', {}, mutation()));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('set-cookie')).toContain('hw_station_session=;');
+      expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe('DELETE');
     });
   });
 });

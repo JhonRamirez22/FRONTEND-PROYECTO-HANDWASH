@@ -49,7 +49,9 @@ export function useWebSocket(ticketProvider?: (sessionId: string) => Promise<str
     }, undefined, RuntimeEndpointConfig.websocketBaseUrl(), API_URL,
     ticketProvider ?? (RuntimeEndpointConfig.isCloudMode()
       ? (sessionId) => stationApi.websocketTicket(sessionId)
-      : undefined));
+      : undefined),
+    // Cloud stations run unattended: keep retrying with the capped backoff instead of giving up.
+    RuntimeEndpointConfig.isCloudMode() ? Number.POSITIVE_INFINITY : undefined);
   }
 
   const connect = useCallback((sessionId: string, accessToken: string | null = null) => {

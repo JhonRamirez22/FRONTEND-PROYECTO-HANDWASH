@@ -1,5 +1,8 @@
 import {
   operatorClaim,
+  operatorShiftStart,
+  operatorShiftStatus,
+  operatorShiftStop,
   operatorStartSession,
   operatorStatus,
   operatorStopSession,
@@ -13,6 +16,8 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   claim: { POST: operatorClaim },
   me: { GET: operatorStatus },
   session: { POST: operatorStartSession },
+  shift: { GET: operatorShiftStatus, POST: operatorShiftStart },
+  'shift-stop': { POST: operatorShiftStop },
   stop: { POST: operatorStopSession },
   ticket: { POST: operatorTicket },
 };

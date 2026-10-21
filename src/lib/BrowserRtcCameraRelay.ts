@@ -1,7 +1,8 @@
 import { RuntimeEndpointConfig } from './RuntimeEndpointConfig';
 import { stationApi } from './StationApi';
 
-export type CameraRelayState = 'connecting' | 'waiting-peer' | 'connected' | 'disconnected' | 'failed';
+/** 'reconnecting' is emitted only by RelaySupervisor, between a failure and the next attempt. */
+export type CameraRelayState = 'connecting' | 'waiting-peer' | 'connected' | 'disconnected' | 'failed' | 'reconnecting';
 export interface ProducerTelemetry {
   modelsReady: boolean;
   activeModelsReady: boolean;

@@ -201,6 +201,77 @@ export async function operatorStopSession(request: Request): Promise<Response> {
   }
 }
 
+interface SafeShift {
+  active: boolean;
+  protocolo: 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO' | null;
+  startedAtEpochMs: number | null;
+  endsAtEpochMs: number | null;
+}
+
+function safeShift(value: unknown): SafeShift | null {
+  if (!isObject(value) || typeof value.active !== 'boolean') return null;
+  const epoch = (item: unknown) => item === null ? null
+    : typeof item === 'number' && Number.isSafeInteger(item) && item > 0 ? item : undefined;
+  const startedAtEpochMs = epoch(value.startedAtEpochMs);
+  const endsAtEpochMs = epoch(value.endsAtEpochMs);
+  if (startedAtEpochMs === undefined || endsAtEpochMs === undefined) return null;
+  if (value.active && (!isProtocol(value.protocolo) || startedAtEpochMs === null || endsAtEpochMs === null)) return null;
+  return { active: value.active, protocolo: value.active ? value.protocolo as SafeShift['protocolo'] : null,
+    startedAtEpochMs: value.active ? startedAtEpochMs : null, endsAtEpochMs: value.active ? endsAtEpochMs : null };
+}
+
+export async function operatorShiftStatus(request: Request): Promise<Response> {
+  if (isCrossSite(request)) return error(403, 'ORIGIN_INVALID');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'GET', undefined, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const shift = safeShift(result.body);
+    return shift ? json({ ...shift }) : error(502, 'SHIFT_RESPONSE_INVALID');
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorShiftStart(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || !isProtocol(body.protocolo) || typeof body.hours !== 'number'
+    || !Number.isInteger(body.hours) || body.hours < 1 || body.hours > 16) {
+    return error(400, 'SHIFT_REQUEST_INVALID');
+  }
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'POST',
+      { hours: body.hours, protocolo: body.protocolo }, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const shift = safeShift(result.body);
+    return shift && shift.active ? json({ ...shift }) : error(502, 'SHIFT_RESPONSE_INVALID');
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorShiftStop(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'DELETE', undefined, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    return json({ stopped: true }, 200, clearCookie(SESSION_COOKIE));
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 export async function operatorTicket(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
@@ -445,7 +516,7 @@ function upstreamError(statusCode: number, body: unknown): Response {
     'OPERADOR_YA_ASIGNADO', 'PUESTO_NO_DISPONIBLE', 'CUENTA_COGNITO_NO_AUTORIZADA',
     'ID_TOKEN_NO_VALIDO', 'CORREO_NO_VERIFICADO', 'TICKET_WEBSOCKET_NO_DISPONIBLE',
     'STATION_SESSION_MISMATCH', 'ACCESO_NO_AUTORIZADO', 'ASIGNACION_NO_DISPONIBLE',
-    'PUESTO_CON_SESION_ACTIVA',
+    'PUESTO_CON_SESION_ACTIVA', 'TURNO_YA_ACTIVO', 'TURNO_INVALIDO', 'TURNO_NO_DISPONIBLE',
   ]);
   const upstreamCode = isObject(body) && typeof body.error === 'string' ? body.error : null;
   const code = upstreamCode && allowedCodes.has(upstreamCode)
