@@ -20,7 +20,7 @@ export type HandWashStep =
   | 'OMS_CONTACTO_RIESGO'
   | 'FONDO';
 
-export type Protocolo = 'CLINICO_QUIRURGICO' | 'DOMESTICO';
+export type Protocolo = 'AGUA_Y_JABON' | 'CLINICO_QUIRURGICO' | 'DOMESTICO';
 export type EvaluationMode = 'PROTOCOLO_OMS' | 'FRICCION_PARCIAL';
 export type SoapEvidence = 'ESPUMA_VISIBLE' | 'SIN_ESPUMA_VISIBLE' | 'NO_VERIFICABLE';
 

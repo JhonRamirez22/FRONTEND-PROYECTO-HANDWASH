@@ -28,7 +28,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [error, setError] = useState<string | null>(authError ?? null);
   const [code, setCode] = useState('');
   const [stationCode, setStationCode] = useState('');
-  const [protocol, setProtocol] = useState<Protocolo>('DOMESTICO');
+  const [protocol, setProtocol] = useState<Protocolo>('AGUA_Y_JABON');
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [relayState, setRelayState] = useState<CameraRelayState | 'idle'>('idle');
@@ -299,11 +299,11 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
                 {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Square size={15} />} Detener sesión
               </button>
             </> : <>
-              <label className="operator-field-label" htmlFor="operator-protocol">Objetivo de duración</label>
+              <label className="operator-field-label" htmlFor="operator-protocol">Protocolo</label>
               <select id="operator-protocol" value={protocol} onChange={(event) => setProtocol(event.target.value as Protocolo)}>
-                <option value="DOMESTICO">40 segundos</option><option value="CLINICO_QUIRURGICO">60 segundos</option>
+                <option value="AGUA_Y_JABON">Agua y jabón · seis movimientos</option>
               </select>
-              <p className="operator-footnote">Objetivo de este piloto; no acredita el protocolo OMS completo ni una decisión clínica.</p>
+              <p className="operator-footnote">Evalúa los seis movimientos de fricción con los tiempos del perfil vigente; no verifica mojado, jabón ni enjuague, ni es una decisión clínica.</p>
               <button className="operator-button operator-button--primary" type="button" onClick={() => void startSession()} disabled={busy}>
                 {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Play size={16} />} Iniciar detección
               </button>

@@ -506,8 +506,8 @@ function isUuid(value: unknown): value is string {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
-function isProtocol(value: unknown): value is 'DOMESTICO' | 'CLINICO_QUIRURGICO' {
-  return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+function isProtocol(value: unknown): value is 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO' {
+  return value === 'AGUA_Y_JABON' || value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
 }
 function safeOperatorGrant(value: unknown): JsonObject | null {
   if (!isObject(value) || typeof value.subject !== 'string' || !value.subject
@@ -529,7 +529,7 @@ function isObject(value: unknown): value is JsonObject {
 
 interface SafeSession {
   sessionId: string;
-  protocolo: 'DOMESTICO' | 'CLINICO_QUIRURGICO';
+  protocolo: 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO';
   mensaje?: string;
 }
 

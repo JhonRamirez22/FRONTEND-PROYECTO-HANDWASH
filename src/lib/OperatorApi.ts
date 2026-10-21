@@ -127,7 +127,7 @@ function isSession(value: unknown): value is OperatorSession {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   return typeof item.sessionId === 'string'
-    && (item.protocolo === 'DOMESTICO' || item.protocolo === 'CLINICO_QUIRURGICO');
+    && (item.protocolo === 'AGUA_Y_JABON' || item.protocolo === 'DOMESTICO' || item.protocolo === 'CLINICO_QUIRURGICO');
 }
 
 function messageFor(code: unknown, status: number): string {

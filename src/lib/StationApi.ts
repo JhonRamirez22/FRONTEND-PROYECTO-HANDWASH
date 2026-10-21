@@ -143,7 +143,7 @@ function isActiveSession(value: unknown): value is ActiveStationSession {
 }
 
 function isProtocol(value: unknown): value is Protocolo {
-  return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+  return value === 'AGUA_Y_JABON' || value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
 }
 
 function isUuid(value: string): boolean {

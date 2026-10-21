@@ -87,6 +87,37 @@ describe('station Vercel BFF', () => {
     expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
   });
 
+  it('recovers an active AGUA_Y_JABON session, the only protocol the operator can start', async () => {
+    const sessionToken = 'session_capability_' + 't'.repeat(40);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        registered: true,
+        stationId: 'd398e61f-56d9-47d3-9381-bdff87731931',
+        stationName: 'Lavamanos A',
+        activeSessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618',
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618',
+        protocolo: 'AGUA_Y_JABON',
+        accessToken: sessionToken,
+        accessTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }), { status: 200 }));
+
+    const response = await status(request('/api/station/status', 'GET', undefined, {
+      Cookie: `hw_station_credential=${stationCredential}`,
+    }));
+    const payload = await response.json() as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ registered: true, stationName: 'Lavamanos A' });
+    expect(payload.activeSession).toEqual({
+      sessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618', protocolo: 'AGUA_Y_JABON',
+    });
+    expect(JSON.stringify(payload)).not.toContain(sessionToken);
+    expect(response.headers.get('set-cookie')).toContain('hw_station_session=');
+    expect(response.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
+    expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
+  });
+
   it('clears both cookies when Java reports that the station credential was revoked', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'PUESTO_NO_AUTORIZADO' }), { status: 401 }));
     const response = await status(request('/api/station/status', 'GET', undefined, {
