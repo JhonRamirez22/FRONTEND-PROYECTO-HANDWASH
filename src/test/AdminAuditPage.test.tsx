@@ -20,6 +20,7 @@ const { auth, api } = vi.hoisted(() => ({
     stations: vi.fn(),
     issueStationCode: vi.fn(),
     revokeStation: vi.fn(),
+    washReports: vi.fn(),
   },
 }));
 
@@ -33,6 +34,7 @@ vi.mock('../lib/AdminAuditApi', () => ({
     stations = api.stations;
     issueStationCode = api.issueStationCode;
     revokeStation = api.revokeStation;
+    washReports = api.washReports;
   },
 }));
 
@@ -44,6 +46,7 @@ describe('AdminAuditPage', () => {
     auth.getAccessToken.mockReturnValue('access-token');
     auth.getHumanRoles.mockReturnValue(['ADMIN']);
     api.encounters.mockResolvedValue([]);
+    api.washReports.mockResolvedValue([]);
     api.events.mockResolvedValue([]);
     api.accessEvents.mockResolvedValue([{
       eventId: 1,

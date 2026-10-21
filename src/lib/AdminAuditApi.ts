@@ -82,7 +82,46 @@ export interface IssuedOperatorAccessCode {
   createdAtEpochMs: number;
 }
 
+export type WashOutcome = 'CORRECTO' | 'REPORTADO' | 'REINICIADO' | 'INTERRUMPIDO';
+
+export interface WashReportStep {
+  paso: string;
+  estado: 'PENDIENTE' | 'EN_CURSO' | 'VALIDADO' | 'REQUIERE_REPETICION';
+  tiempoAcreditadoMs: number;
+  minimoRequeridoMs: number;
+  motivo: string | null;
+}
+
+export interface WashReportRecord {
+  sessionId: string;
+  attemptNumber: number;
+  policyVersion: string;
+  resultado: WashOutcome;
+  motivo: string | null;
+  inicioEpochMs: number | null;
+  finEpochMs: number | null;
+  duracionMs: number | null;
+  lento: boolean;
+  estadoEvidencia: 'DESACTIVADA' | 'NO_CAPTURADA' | 'CAPTURADA' | null;
+  pasos: WashReportStep[];
+}
+
+export interface WashReportFilter {
+  desde: number;
+  hasta: number;
+  resultado: WashOutcome | null;
+  limit: number;
+}
+
 export class AdminAuditApi {
+  async washReports(token: string, filter: WashReportFilter, signal?: AbortSignal): Promise<WashReportRecord[]> {
+    const params = new URLSearchParams({
+      desde: String(filter.desde), hasta: String(filter.hasta), limit: String(filter.limit),
+    });
+    if (filter.resultado) params.set('resultado', filter.resultado);
+    return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
   async encounters(token: string, limit = 50): Promise<EncounterAuditRecord[]> {
     return this.request(`/api/v1/admin/encounters?limit=${limit}`, token);
   }

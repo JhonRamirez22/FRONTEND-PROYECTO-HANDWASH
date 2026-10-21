@@ -7,6 +7,7 @@ import {
 import { AdminAuditApi, type EncounterAuditRecord, type FailedAttemptAuditRecord, type SessionAuditEvent } from '../lib/AdminAuditApi';
 import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
+import { AdminWashReports } from './AdminWashReports';
 import { cognitoAdminAuth } from '../lib/adminAuth';
 import { DeploymentStatusService } from '../lib/DeploymentStatusService';
 import { AppShell } from './AppShell';
@@ -209,6 +210,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
           </div>
         </section>
 
+        {view === 'ready' && <AdminWashReports onSignOut={signOut} />}
         {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
         {view === 'ready' && <AdminOperatorAccess />}
 
