@@ -72,6 +72,7 @@ export interface ConnectionState {
 }
 
 export interface SessionState {
+  frictionEvaluation: FrictionEvaluation | null;
   sessionId: string | null;
   accessToken: string | null;
   isOwner: boolean;
@@ -100,6 +101,8 @@ export interface SessionState {
 
 /** A validated, single-message update from the Java session WebSocket. */
 export interface DetectionStateUpdate {
+  sessionId?: string;
+  frictionEvaluation?: FrictionEvaluation;
   currentStep: HandWashStep | null;
   elapsedSeconds: number | null;
   waitingForStart: boolean;
@@ -117,6 +120,29 @@ export interface DetectionStateUpdate {
   lastRetryError?: string;
   frictionSequenceObservedComplete?: boolean;
   infraction: InfractionEvent | null;
+}
+
+export type FrictionStepStatus = 'PENDIENTE' | 'EN_CURSO' | 'VALIDADO' | 'REQUIERE_REPETICION';
+export interface FrictionEvaluation {
+  versionPolitica: 'FRICCION_BALANCEADA_V2';
+  revisionEstado: number;
+  numeroIntento: number;
+  estadoIntento: 'ESPERANDO_INICIO' | 'ACTIVO' | 'PAUSADO' | 'COMPLETO_PARCIAL' | 'INTERRUMPIDO' | 'PENDIENTE_PERSISTENCIA';
+  pasoEsperado: HandWashStep;
+  motivoRecuperacion: string | null;
+  pasos: FrictionStepEvaluation[];
+  duracionMinimaFriccionMs: number;
+  objetivoProcedimientoMs: number;
+  secuenciaValidada: boolean;
+  persistenciaPendiente: boolean;
+  ultimoResultado: { numeroIntento: number; resultado: string; motivo: string | null; pasos: FrictionStepEvaluation[] } | null;
+}
+export interface FrictionStepEvaluation {
+  paso: HandWashStep;
+  estado: FrictionStepStatus;
+  tiempoAcreditadoMs: number;
+  minimoRequeridoMs: number;
+  motivo: string | null;
 }
 
 export const STEP_LABELS: Partial<Record<HandWashStep, string>> & Record<string, string> = {

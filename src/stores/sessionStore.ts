@@ -38,6 +38,7 @@ interface SessionStore extends SessionState {
 }
 
 export const useSessionStore = create<SessionStore>((set) => ({
+  frictionEvaluation: null,
   sessionId: null,
   accessToken: null,
   isOwner: false,
@@ -65,6 +66,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   startSession: (sessionId, protocolo, accessToken = null, isOwner = true) =>
     set({
+      frictionEvaluation: null,
       sessionId,
       accessToken,
       isOwner,
@@ -93,6 +95,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   endSession: () =>
     set({
+      frictionEvaluation: null,
       sessionId: null,
       isActive: false,
       accessToken: null,
@@ -130,6 +133,11 @@ export const useSessionStore = create<SessionStore>((set) => ({
   })),
 
   applyDetectionUpdate: (update) => set((state) => {
+    if (update.sessionId && update.sessionId !== state.sessionId) return state;
+    const incoming = update.frictionEvaluation;
+    const previous = state.frictionEvaluation;
+    if (previous && (!incoming || incoming.revisionEstado <= previous.revisionEstado
+      || incoming.numeroIntento < previous.numeroIntento)) return state;
     const startsAttempt = update.currentStep === 'PASO_1_PALMAS'
       || update.currentStep === 'OMS_01_MOJAR_MANOS';
     const clear = update.waitingForStart || (startsAttempt && state.currentStep === '');
@@ -137,6 +145,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
     if (update.infraction) infractions = appendUniqueInfraction(infractions, update.infraction);
 
     return {
+      ...(incoming ? { frictionEvaluation: incoming } : {}),
       ...(clear ? {
         currentStep: '', previousStep: '', elapsedSeconds: 0,
       } : {}),
@@ -169,6 +178,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   setSummary: (summary) => set({ summary }),
   finishSession: (summary) => set({
+    frictionEvaluation: null,
     summary,
     sessionId: null,
     accessToken: null,
@@ -185,6 +195,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   setElapsedSeconds: (seconds) => set({ elapsedSeconds: seconds }),
   clearProgress: () => set({
+    frictionEvaluation: null,
     currentStep: '', previousStep: '', elapsedSeconds: 0, infractions: [],
     secuenciaFriccionObservadaCompleta: false,
   }),
