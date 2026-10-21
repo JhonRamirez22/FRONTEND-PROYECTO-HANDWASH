@@ -1056,3 +1056,8 @@
 .audit-chain-result.is-ok { background: #e8f4ec; color: #1f4d2e; }
 .audit-chain-result.is-broken { background: #fbeaea; color: #7a1f1f; }
 .audit-chain-result ul { margin: 4px 0 0; padding-left: 18px; }
+.change-control-subtitle { margin: 14px 18px 6px; font-size: 13px; }
+.change-control-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px 18px; border-top: 1px solid #edf2f0; }
+.change-control-form label { display: grid; gap: 4px; flex: 1 1 200px; color: var(--hw-muted); font-size: 11px; font-weight: 600; }
+.change-control-form input, .change-control-form select { min-height: 44px; padding: 0 12px; border: 1px solid #a3b8b5; border-radius: 9px; background: #fff; color: var(--hw-ink); font-size: 12px; }
+.change-control-reports { margin: 0; padding: 8px 18px 14px 36px; font-size: 12px; color: var(--hw-muted); }

@@ -131,6 +131,36 @@ export interface AuditChainStatus {
   seals: AuditSeal[];
 }
 
+export interface ProfileChange {
+  perfil: { version: number; tiemposPasoMs: Record<string, number>; duracionTotalMs: number; umbralLentoMs: number;
+    creadoPor: string; creadoEnEpochMs: number };
+  motivo: string | null;
+  revertidoDe: number | null;
+  estado: 'ACTIVE' | 'PENDING' | 'REJECTED';
+  decididoPor: string | null;
+  decididoEnEpochMs: number | null;
+  conInformeDeValidacion: boolean;
+}
+export interface ModelStatus {
+  model: { modelSha256: string; modelVersion: string; datasetVersion: string; firstSeenEpochMs: number;
+    lastSeenEpochMs: number; encounters: number; reports: number };
+  evidencia: 'SIN_EVIDENCIA' | 'CON_INFORME';
+}
+export interface ValidationReport {
+  reportId: number; modelSha256: string; profileVersion: number | null; title: string; summary: string;
+  documentSha256: string; createdBy: string; createdAtEpochMs: number;
+}
+export interface ChangeControlOverview {
+  ajustes: { secondApproverRequired: boolean; updatedBy: string; updatedAtEpochMs: number };
+  vigente: ProfileChange | null;
+  cambios: ProfileChange[];
+  modelos: ModelStatus[];
+  informes: ValidationReport[];
+}
+export interface ValidationReportInput {
+  modeloSha256: string; versionPerfil: number | null; titulo: string; resumen: string; documentoSha256: string;
+}
+
 export interface WashReportFilter {
   desde: number;
   hasta: number;
@@ -145,6 +175,26 @@ export class AdminAuditApi {
     });
     if (filter.resultado) params.set('resultado', filter.resultado);
     return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
+  async changeControl(token: string, signal?: AbortSignal): Promise<ChangeControlOverview> {
+    return this.request('/api/v1/admin/change-control', token, signal);
+  }
+
+  async revertProfile(token: string, version: number, motivo: string): Promise<ProfileChange> {
+    return this.request(`/api/v1/admin/change-control/profile/${version}/revert`, token, undefined, 'POST', { motivo });
+  }
+
+  async decideProfile(token: string, version: number, decision: 'approve' | 'reject'): Promise<ProfileChange> {
+    return this.request(`/api/v1/admin/change-control/profile/${version}/${decision}`, token, undefined, 'POST');
+  }
+
+  async setSecondApprover(token: string, required: boolean): Promise<void> {
+    await this.request('/api/v1/admin/change-control/settings', token, undefined, 'PUT', { segundoAprobadorRequerido: required });
+  }
+
+  async registerValidationReport(token: string, input: ValidationReportInput): Promise<ValidationReport> {
+    return this.request('/api/v1/admin/change-control/validation-reports', token, undefined, 'POST', input);
   }
 
   /** Recomputes the whole hash chain on the server; the read itself is audited. */

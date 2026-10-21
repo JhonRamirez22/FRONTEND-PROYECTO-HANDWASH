@@ -9,6 +9,7 @@ import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { AdminWashReports } from './AdminWashReports';
 import { AdminAuditChainPanel } from './AdminAuditChainPanel';
+import { AdminChangeControlPanel } from './AdminChangeControlPanel';
 import { cognitoAdminAuth } from '../lib/adminAuth';
 import { DeploymentStatusService } from '../lib/DeploymentStatusService';
 import { AppShell } from './AppShell';
@@ -213,6 +214,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
 
         {view === 'ready' && <AdminWashReports onSignOut={signOut} />}
         {view === 'ready' && <AdminAuditChainPanel onSignOut={signOut} />}
+        {view === 'ready' && <AdminChangeControlPanel onSignOut={signOut} />}
         {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
         {view === 'ready' && <AdminOperatorAccess />}
 
