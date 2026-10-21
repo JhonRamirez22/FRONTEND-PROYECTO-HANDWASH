@@ -21,6 +21,8 @@ const { auth, api } = vi.hoisted(() => ({
     issueStationCode: vi.fn(),
     revokeStation: vi.fn(),
     washReports: vi.fn(),
+    auditChain: vi.fn(),
+    sealAuditChain: vi.fn(),
   },
 }));
 
@@ -35,6 +37,8 @@ vi.mock('../lib/AdminAuditApi', () => ({
     issueStationCode = api.issueStationCode;
     revokeStation = api.revokeStation;
     washReports = api.washReports;
+    auditChain = api.auditChain;
+    sealAuditChain = api.sealAuditChain;
   },
 }));
 

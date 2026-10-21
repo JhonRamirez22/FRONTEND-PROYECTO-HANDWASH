@@ -117,6 +117,20 @@ export interface EvidenceSettings {
   updatedAtEpochMs: number;
 }
 
+export interface AuditChainProblem { eventId: number | null; code: string }
+export interface AuditSeal {
+  sealId: number; sealedAtEpochMs: number; toEventId: number | null; headHash: string; eventCount: number;
+  resultsCount: number; keyed: boolean; objectKey: string | null;
+}
+export interface AuditChainStatus {
+  chain: {
+    ok: boolean; keyed: boolean; checked: number; firstChainedEventId: number | null; lastEventId: number | null;
+    headHash: string; matchesLatestSeal: boolean; problems: AuditChainProblem[];
+  };
+  resultsMatchLatestSeal: boolean;
+  seals: AuditSeal[];
+}
+
 export interface WashReportFilter {
   desde: number;
   hasta: number;
@@ -131,6 +145,15 @@ export class AdminAuditApi {
     });
     if (filter.resultado) params.set('resultado', filter.resultado);
     return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
+  /** Recomputes the whole hash chain on the server; the read itself is audited. */
+  async auditChain(token: string, signal?: AbortSignal): Promise<AuditChainStatus> {
+    return this.request('/api/v1/admin/audit-chain', token, signal);
+  }
+
+  async sealAuditChain(token: string): Promise<AuditSeal | null> {
+    return this.request('/api/v1/admin/audit-chain/seal', token, undefined, 'POST');
   }
 
   async evidenceSettings(token: string, signal?: AbortSignal): Promise<EvidenceSettings> {

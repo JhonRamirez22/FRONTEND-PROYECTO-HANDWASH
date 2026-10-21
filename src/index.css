@@ -1051,3 +1051,8 @@
 .evidence-dialog figure { display: grid; gap: 10px; max-width: min(96vw, 760px); margin: 0; padding: 14px; border-radius: 14px; background: #fff; }
 .evidence-dialog img { max-width: 100%; max-height: 70vh; border-radius: 8px; object-fit: contain; }
 .evidence-dialog figcaption { color: var(--hw-muted); font-size: 12px; }
+.audit-chain-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.audit-chain-result { display: grid; gap: 4px; margin: 0 18px 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px; }
+.audit-chain-result.is-ok { background: #e8f4ec; color: #1f4d2e; }
+.audit-chain-result.is-broken { background: #fbeaea; color: #7a1f1f; }
+.audit-chain-result ul { margin: 4px 0 0; padding-left: 18px; }
