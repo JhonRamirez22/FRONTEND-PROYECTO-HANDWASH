@@ -120,6 +120,9 @@ export class BackendMessageMapper {
       || !(guide.faltanteMs === null || integer(guide.faltanteMs))) return undefined;
     if (value.secuenciaValidada && (value.persistenciaPendiente || value.estadoIntento !== 'COMPLETO_PARCIAL'
       || !(value.pasos as JsonRecord[]).every((step) => step.estado === 'VALIDADO'))) return undefined;
+    // Fail-safe (R-01): "complete" is only believable when Java validated all six movements and stored them.
+    if (guide.codigo === 'LAVADO_COMPLETO' && !value.secuenciaValidada) return undefined;
+    if (value.estadoIntento === 'COMPLETO_PARCIAL' && value.persistenciaPendiente) return undefined;
     return value as unknown as FrictionEvaluation;
   }
 

@@ -119,7 +119,7 @@ export function KioskScreen() {
           <LiveCameraFeed passive browserStream={stream} relayStatus={relayStatus}
             producerTelemetry={telemetry} backendStatus={clinicalStatus} backendLoading={false} />
         </div>
-        <KioskProgress />
+        <KioskProgress evaluating={health.level !== 'offline'} />
       </div>
       {photoEvidence && (
         <p className="kiosk-photo-notice" role="note">

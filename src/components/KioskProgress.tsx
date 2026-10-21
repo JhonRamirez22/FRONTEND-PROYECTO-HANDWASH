@@ -5,7 +5,11 @@ import { formatSeconds } from '@/lib/KioskGuideCatalog';
 import { KioskGuidance } from './KioskGuidance';
 import { KioskWashSummary } from './KioskWashSummary';
 
-export function KioskProgress() {
+/**
+ * @param evaluating false while the link to Java, the PC or the camera is down: the last guidance is
+ *   then stale, so it is hidden and the panel says the wash is not being evaluated (R-01).
+ */
+export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
   const active = useSessionStore((state) => state.isActive);
   const current = useSessionStore((state) => state.currentStep);
   const mode = useSessionStore((state) => state.modoEvaluacion);
@@ -22,14 +26,15 @@ export function KioskProgress() {
           <p>{active && currentIndex >= 0 ? `Paso ${currentIndex + 1} de ${steps.length}` : 'Secuencia del lavado'}</p>
         </div>
         <span role="status" className={`kiosk-progress-state ${active ? 'is-active' : summary ? 'is-finished' : 'is-waiting'}`}>
-          {evaluation?.estadoIntento === 'PENDIENTE_PERSISTENCIA' ? 'Guardado pendiente'
+          {!evaluating && !evaluation?.secuenciaValidada ? 'Sin evaluación'
+            : evaluation?.estadoIntento === 'PENDIENTE_PERSISTENCIA' ? 'Guardado pendiente'
             : evaluation?.secuenciaValidada ? 'Seis movimientos validados'
             : evaluation?.estadoIntento === 'PAUSADO' ? 'En pausa'
             : evaluation?.estadoIntento === 'INTERRUMPIDO' ? 'Intento interrumpido'
             : active ? 'Estado recibido de Java' : summary ? 'Sesión finalizada' : 'Esperando sesión'}
         </span>
       </div>
-      {active && evaluation && <KioskGuidance evaluation={evaluation} />}
+      {active && evaluating && evaluation && <KioskGuidance evaluation={evaluation} />}
       {evaluation && <KioskWashSummary evaluation={evaluation} />}
       {!(evaluation && (evaluation.estadoIntento === 'COMPLETO_PARCIAL' || evaluation.estadoIntento === 'INTERRUMPIDO')) && <ol>
         {steps.map((step, index) => {
