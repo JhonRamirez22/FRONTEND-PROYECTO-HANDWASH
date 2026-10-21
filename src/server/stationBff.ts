@@ -44,7 +44,10 @@ export async function status(request: Request): Promise<Response> {
   let resumeError = false;
   if (typeof upstream.body.activeSessionId === 'string') {
     const knownSessionId = new URL(request.url).searchParams.get('knownSessionId');
-    if (isUuid(knownSessionId) && knownSessionId === upstream.body.activeSessionId) {
+    // The session capability cookie expires with its token; once it is gone the known session
+    // must be resumed again, or a long shift would lose its camera link after the first hour.
+    if (isUuid(knownSessionId) && knownSessionId === upstream.body.activeSessionId
+      && cookieValue(request, SESSION_COOKIE)) {
       return json({ registered: true, stationId: upstream.body.stationId,
         stationName: upstream.body.stationName, activeSession: null,
         unchangedActiveSession: true, resumeError: false });

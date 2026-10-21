@@ -119,6 +119,41 @@ describe('station Vercel BFF', () => {
     expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
   });
 
+  describe('known session and its capability cookie', () => {
+    const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+    const sessionToken = 'session_capability_' + 't'.repeat(40);
+    const me = () => new Response(JSON.stringify({
+      registered: true, stationId: 'd398e61f-56d9-47d3-9381-bdff87731931', stationName: 'Lavamanos A', activeSessionId: sessionId,
+    }), { status: 200 });
+
+    it('keeps the shortcut while the session cookie is still present', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(me());
+      const response = await status(request(`/api/station/status?knownSessionId=${sessionId}`, 'GET', undefined, {
+        Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionToken}`,
+      }));
+
+      expect(await response.json()).toMatchObject({ unchangedActiveSession: true });
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-issues the cookie when the known session has lost it, so the camera link can be rebuilt', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(me()).mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionId, protocolo: 'AGUA_Y_JABON', accessToken: sessionToken,
+        accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      }), { status: 200 }));
+      const response = await status(request(`/api/station/status?knownSessionId=${sessionId}`, 'GET', undefined, {
+        Cookie: `hw_station_credential=${stationCredential}`,
+      }));
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(payload.unchangedActiveSession).toBeFalsy();
+      expect(payload.activeSession).toEqual({ sessionId, protocolo: 'AGUA_Y_JABON' });
+      expect(response.headers.get('set-cookie')).toContain(`hw_station_session=${sessionToken}`);
+      expect(JSON.stringify(payload)).not.toContain(sessionToken);
+      expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
+    });
+  });
+
   it('clears both cookies when Java reports that the station credential was revoked', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'PUESTO_NO_AUTORIZADO' }), { status: 401 }));
     const response = await status(request('/api/station/status', 'GET', undefined, {
