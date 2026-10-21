@@ -1061,3 +1061,8 @@
 .change-control-form label { display: grid; gap: 4px; flex: 1 1 200px; color: var(--hw-muted); font-size: 11px; font-weight: 600; }
 .change-control-form input, .change-control-form select { min-height: 44px; padding: 0 12px; border: 1px solid #a3b8b5; border-radius: 9px; background: #fff; color: var(--hw-ink); font-size: 12px; }
 .change-control-reports { margin: 0; padding: 8px 18px 14px 36px; font-size: 12px; color: var(--hw-muted); }
+.trend-bar { display: inline-block; width: 70px; height: 8px; margin-right: 6px; border-radius: 4px; background: #e3ebe9; vertical-align: middle; overflow: hidden; }
+.trend-bar > i { display: block; height: 100%; background: #2f7d5b; }
+.trend-omitted { list-style: none; margin: 0; padding: 4px 18px 12px; display: grid; gap: 6px; font-size: 12px; }
+.trend-omitted li { display: grid; grid-template-columns: minmax(120px, 220px) 1fr auto; align-items: center; gap: 10px; }
+.trend-omitted .trend-bar { width: 100%; margin: 0; }

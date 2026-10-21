@@ -10,6 +10,7 @@ import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { AdminWashReports } from './AdminWashReports';
 import { AdminAuditChainPanel } from './AdminAuditChainPanel';
 import { AdminChangeControlPanel } from './AdminChangeControlPanel';
+import { AdminWashTrends } from './AdminWashTrends';
 import { cognitoAdminAuth } from '../lib/adminAuth';
 import { DeploymentStatusService } from '../lib/DeploymentStatusService';
 import { AppShell } from './AppShell';
@@ -212,6 +213,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
           </div>
         </section>
 
+        {view === 'ready' && <AdminWashTrends onSignOut={signOut} />}
         {view === 'ready' && <AdminWashReports onSignOut={signOut} />}
         {view === 'ready' && <AdminAuditChainPanel onSignOut={signOut} />}
         {view === 'ready' && <AdminChangeControlPanel onSignOut={signOut} />}

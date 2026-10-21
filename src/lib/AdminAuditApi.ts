@@ -161,6 +161,18 @@ export interface ValidationReportInput {
   modeloSha256: string; versionPerfil: number | null; titulo: string; resumen: string; documentoSha256: string;
 }
 
+export interface TrendBucket {
+  total: number; correctos: number; reportados: number; reiniciados: number; interrumpidos: number; lentos: number;
+  duracionMediaCorrectosMs: number | null; porcentajeCorrectos: number | null;
+}
+export interface WashTrends {
+  zonaHoraria: string;
+  total: TrendBucket;
+  dias: { fecha: string; metricas: TrendBucket }[];
+  turnos: Record<'MANANA' | 'TARDE' | 'NOCHE', TrendBucket>;
+  movimientosOmitidosEnReportados: Record<string, number>;
+}
+
 export interface WashReportFilter {
   desde: number;
   hasta: number;
@@ -175,6 +187,24 @@ export class AdminAuditApi {
     });
     if (filter.resultado) params.set('resultado', filter.resultado);
     return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
+  async washTrends(token: string, desde: number, hasta: number, signal?: AbortSignal): Promise<WashTrends> {
+    return this.request(`/api/v1/admin/wash-stats/trends?desde=${desde}&hasta=${hasta}`, token, signal);
+  }
+
+  /** Anonymous CSV of finished washes; the server audits every export and sets the file name. */
+  async washCsv(token: string, desde: number, hasta: number): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${RuntimeEndpointConfig.apiBaseUrl()}/api/v1/admin/wash-stats/export.csv?desde=${desde}&hasta=${hasta}`, {
+      method: 'GET', credentials: 'omit', cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'text/csv' },
+    });
+    if (response.status === 401) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
+    if (response.status === 400) throw new Error('El rango tiene demasiados lavados o fechas inválidas. Acótalo.');
+    if (!response.ok) throw new Error('No fue posible generar el archivo. Reintenta más tarde.');
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const filename = /filename="([A-Za-z0-9_.-]+)"/.exec(disposition)?.[1] ?? 'handwash-lavados.csv';
+    return { blob: await response.blob(), filename };
   }
 
   async changeControl(token: string, signal?: AbortSignal): Promise<ChangeControlOverview> {
