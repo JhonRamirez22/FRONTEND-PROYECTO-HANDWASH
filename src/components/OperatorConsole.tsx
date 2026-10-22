@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
-import { cognitoAdminAuth } from '@/lib/adminAuth';
+import { operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
 import { OperatorApi, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
 import { ContinuityBrowserCameraService, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
@@ -8,6 +8,7 @@ import { useStationCamera } from '@/hooks/useStationCamera';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
 import { OperatorShiftPanel } from './OperatorShiftPanel';
+import { operatorPreflight } from '@/lib/OperatorPreflight';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { Protocolo } from '@/types';
 
@@ -20,8 +21,8 @@ interface OperatorConsoleProps {
 }
 
 export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps) {
-  const token = cognitoAdminAuth.getAccessToken();
-  const idToken = cognitoAdminAuth.getIdToken();
+  const token = operatorAuth.getAccessToken();
+  const idToken = operatorAuth.getIdToken();
   const [status, setStatus] = useState<OperatorStatus | null>(null);
   const [station, setStation] = useState<PublicStationStatus | null>(null);
   const [checking, setChecking] = useState(Boolean(token));
@@ -40,16 +41,22 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const sessionActive = useSessionStore((state) => state.isActive);
   const currentStep = useSessionStore((state) => state.currentStep);
   const { stream, setStream } = useStationCamera();
+  const preflight = operatorPreflight({
+    assigned: Boolean(status),
+    macLinked: Boolean(status && station?.registered && station.stationId === status.grant.stationId),
+    cameraLive: Boolean(stream?.getVideoTracks().some((track) => track.readyState === 'live')),
+    shiftActive: Boolean(shift?.active),
+  });
   const relayedSession = status && station?.stationId === status.grant.stationId && sessionActive ? activeSessionId : null;
   const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream);
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
-    const currentToken = cognitoAdminAuth.getAccessToken();
+    const currentToken = operatorAuth.getAccessToken();
     if (!currentToken) throw new Error('La sesión de operador expiró.');
     return operatorApi.websocketTicket(currentToken, sessionId);
   });
 
   const refresh = useCallback(async () => {
-    const currentToken = cognitoAdminAuth.getAccessToken();
+    const currentToken = operatorAuth.getAccessToken();
     if (!currentToken) {
       setChecking(false);
       return;
@@ -98,13 +105,13 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
   async function signIn() {
     setError(null);
-    try { await cognitoAdminAuth.beginSignIn('#/operator'); }
+    try { await operatorAuth.beginSignIn('#/operator'); }
     catch (cause) { setError(messageOf(cause)); }
   }
 
   async function signUp() {
     setError(null);
-    try { await cognitoAdminAuth.beginSignUp('#/operator'); }
+    try { await operatorAuth.beginSignUp('#/operator'); }
     catch (cause) { setError(messageOf(cause)); }
   }
 
@@ -224,11 +231,15 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
         <Brand />
         <p className="operator-eyebrow">Acceso de operación</p>
         <h1 id="operator-access-title">Control del puesto</h1>
-        <p>Inicia sesión con tu cuenta verificada. Java solo habilita los controles después de validar una asignación activa.</p>
+        <p>{operatorHasOwnPool
+          ? 'Inicia sesión con la cuenta que te creó ADMIN. Java solo habilita los controles de tu puesto asignado.'
+          : 'Inicia sesión con tu cuenta verificada. Java solo habilita los controles después de validar una asignación activa.'}</p>
         {error && <p className="operator-error" role="alert">{error}</p>}
         <button className="operator-button operator-button--primary" type="button" onClick={() => void signIn()}>Iniciar sesión</button>
-        <button className="operator-button operator-button--secondary" type="button" onClick={() => void signUp()}>Crear cuenta de operador</button>
-        <p className="operator-footnote"><ShieldCheck size={15} /> Cognito verifica el correo y exige MFA TOTP. Una cuenta nueva no obtiene acceso al puesto sin código ADMIN.</p>
+        {!operatorHasOwnPool && <button className="operator-button operator-button--secondary" type="button" onClick={() => void signUp()}>Crear cuenta de operador</button>}
+        <p className="operator-footnote"><ShieldCheck size={15} /> {operatorHasOwnPool
+          ? 'La cuenta la crea ADMIN junto con el puesto; en el primer acceso cambias la contraseña temporal.'
+          : 'Cognito verifica el correo y exige MFA TOTP. Una cuenta nueva no obtiene acceso al puesto sin código ADMIN.'}</p>
       </section>
     </main>;
   }
@@ -253,7 +264,12 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
       {error && <p className="operator-error" role="alert">{error}</p>}
 
-      {!status && <section className="operator-panel" aria-labelledby="claim-title">
+      {!status && operatorHasOwnPool && !checking && <section className="operator-panel" role="status">
+        <div className="operator-panel-heading"><div><p className="operator-eyebrow">Cuenta sin puesto</p><h2>Aún no tienes un puesto asignado</h2></div><ShieldCheck /></div>
+        <p>Pide a ADMIN que cree tu cuenta dentro de un puesto. Si ya la creó, es posible que haya sido deshabilitada.</p>
+      </section>}
+
+      {!status && !operatorHasOwnPool && <section className="operator-panel" aria-labelledby="claim-title">
         <div className="operator-panel-heading"><div><p className="operator-eyebrow">Vinculación personal</p><h2 id="claim-title">Canjear acceso de operador</h2></div><ShieldCheck /></div>
         <p>ADMIN emite un código de un solo uso asociado a tu correo verificado y a un único puesto. El código no caduca, pero deja de servir al usarse o revocarse.</p>
         <form className="operator-inline-form" onSubmit={(event) => void claimAccess(event)}>
@@ -278,9 +294,9 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       {(!station?.registered || (status && station.stationId !== status.grant.stationId)) && (
         <section className="operator-panel operator-panel--commission" aria-labelledby="commission-title">
           <div className="operator-panel-heading"><div><p className="operator-eyebrow">Configuración física</p><h2 id="commission-title">Registrar este equipo</h2></div><Camera /></div>
-          <p>En el Mac conectado a Continuity, canjea el código técnico emitido por ADMIN. Este registro es independiente de tu acceso personal.</p>
+          <p>En el Mac conectado a Continuity, pega el enlace o token de activación que ADMIN te dio al crear el puesto (o abre el enlace directamente). Este registro es independiente de tu acceso personal.</p>
           <form className="operator-inline-form" onSubmit={(event) => void registerStation(event)}>
-            <label htmlFor="operator-station-code">Código técnico de inscripción</label>
+            <label htmlFor="operator-station-code">Token de activación del puesto</label>
             <div><input id="operator-station-code" type="password" value={stationCode}
               onChange={(event) => setStationCode(event.target.value)} autoComplete="off"
               autoCapitalize="none" spellCheck={false} minLength={30} maxLength={100} required />
@@ -332,6 +348,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
           <div className="operator-panel operator-session-panel">
             <div className="operator-panel-heading"><div><p className="operator-eyebrow">Sesión remota</p><h2>Control de detección</h2></div><Activity /></div>
+            <p className={`operator-footnote ${preflight.ready ? '' : 'operator-error'}`} role="status">{preflight.message}</p>
             <div className="operator-checks" aria-label="Estado de integraciones">
               <StatusLine label="Java" ok={Boolean(status)} detail={status ? 'Asignación activa' : 'Sin asignación'} />
               <StatusLine label="Cámara de este Mac" ok={Boolean(stream)} detail={stream ? 'Permiso activo' : 'Requiere configuración local'} />

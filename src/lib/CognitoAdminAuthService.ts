@@ -3,6 +3,8 @@ export interface CognitoAdminAuthConfig {
   clientId: string;
   redirectUri: string;
   landingHash?: '#/' | '#/admin' | '#/operator';
+  /** Operator-pool tokens carry no groups; a valid access token from this pool is an OPERATOR. */
+  operatorPool?: boolean;
 }
 
 export type HumanRole = 'OPERATOR' | 'ADMIN';
@@ -201,6 +203,7 @@ export class CognitoAdminAuthService {
   getHumanRoles(): HumanRole[] {
     const token = this.getAccessToken();
     if (!token) return [];
+    if (this.config.operatorPool) return cognitoOperatorPoolRoles(token, this.config.clientId);
     return cognitoHumanRoles(token);
   }
 
@@ -278,6 +281,27 @@ export class CognitoAdminAuthService {
     } catch {
       return null;
     }
+  }
+}
+
+export function cognitoOperatorPoolRoles(accessToken: string, clientId: string): HumanRole[] {
+  const claims = decodeClaims(accessToken);
+  return claims && claims.token_use === 'access' && claims.client_id === clientId ? ['OPERATOR'] : [];
+}
+
+function decodeClaims(accessToken: string): Record<string, unknown> | null {
+  try {
+    const segments = accessToken.split('.');
+    if (segments.length !== 3 || segments.some((segment) => segment.length === 0)) return null;
+    const payloadSegment = segments[1];
+    if (!payloadSegment || !/^[A-Za-z0-9_-]+$/.test(payloadSegment)) return null;
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')),
+      (character) => character.charCodeAt(0));
+    const claims: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    return claims && typeof claims === 'object' ? claims as Record<string, unknown> : null;
+  } catch {
+    return null;
   }
 }
 

@@ -461,3 +461,36 @@ describe('evidence upload BFF', () => {
     expect(await refused.json()).toEqual({ code: 'FOTO_DESACTIVADA' });
   });
 });
+
+describe('station activation through the enroll BFF route', () => {
+  beforeEach(() => {
+    vi.stubEnv('HANDWASH_PUBLIC_ORIGIN', origin);
+    vi.stubEnv('HANDWASH_BACKEND_ORIGIN', 'https://java.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+  const guarded = { Origin: origin, 'X-CSRF-Token': csrfToken, Cookie: `hw_station_csrf=${csrfToken}`,
+    'X-Forwarded-For': '203.0.113.77' };
+
+  it('redeems an activation token against /stations/activate and keeps the credential in a cookie', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      stationId: 'd398e61f-56d9-47d3-9381-bdff87731931',
+      stationName: 'Lavamanos A', credential: stationCredential, createdAtEpochMs: Date.now(),
+    }), { status: 200 }));
+    const response = await enroll(request('/api/station/enroll', 'POST', { activation: 'A1_-'.repeat(11) }, guarded));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(payload)).not.toContain(stationCredential);
+    expect(response.headers.get('set-cookie')).toContain('HttpOnly');
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe('https://java.example.com/api/v1/stations/activate');
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ token: 'A1_-'.repeat(11) });
+  });
+
+  it('rejects malformed activation tokens without calling Java', async () => {
+    const response = await enroll(request('/api/station/enroll', 'POST', { activation: 'bad token ' + 'x'.repeat(40) }, guarded));
+    expect(response.status).toBe(400);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+});
