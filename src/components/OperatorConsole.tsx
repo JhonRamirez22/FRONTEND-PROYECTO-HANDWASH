@@ -3,7 +3,7 @@ import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, Shiel
 import { cognitoAdminAuth } from '@/lib/adminAuth';
 import { OperatorApi, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
-import { ContinuityBrowserCameraService } from '@/lib/ContinuityBrowserCameraService';
+import { ContinuityBrowserCameraService, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
 import { useStationCamera } from '@/hooks/useStationCamera';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
@@ -31,6 +31,9 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [protocol, setProtocol] = useState<Protocolo>('AGUA_Y_JABON');
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraBusy, setCameraBusy] = useState(false);
+  const [cameraChoices, setCameraChoices] = useState<CameraChoice[]>([]);
+  const [chosenCamera, setChosenCamera] = useState('');
   const [shift, setShift] = useState<ShiftView | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const activeSessionId = useSessionStore((state) => state.sessionId);
@@ -131,12 +134,38 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     finally { setBusy(false); }
   }
 
-  async function authorizeCamera() {
+  async function authorizeCamera(deviceId?: string) {
     setCameraError(null);
+    setCameraBusy(true);
     try {
-      const opened = await ContinuityBrowserCameraService.open();
+      const wanted = deviceId ?? ContinuityBrowserCameraService.remembered() ?? undefined;
+      let opened: MediaStream;
+      try {
+        opened = await ContinuityBrowserCameraService.open(undefined, undefined, { deviceId: wanted });
+      } catch (cause) {
+        if (!wanted || deviceId) throw cause;
+        // The remembered camera is gone (iPhone away): fall back to automatic detection.
+        ContinuityBrowserCameraService.remember(null);
+        opened = await ContinuityBrowserCameraService.open();
+      }
+      const track = opened.getVideoTracks()[0];
+      const label = track?.label ?? '';
+      const settings = track?.getSettings?.();
+      if (settings?.deviceId) ContinuityBrowserCameraService.remember(settings.deviceId);
       setStream(opened);
-    } catch (cause) { setCameraError(messageOf(cause)); }
+      setCameraChoices([]);
+      if (deviceId && !/iphone|continuity|continuidad/i.test(label)) {
+        setCameraError(`Estás usando "${label || 'otra cámara'}", no el iPhone. Funciona, pero revisa el encuadre.`);
+      }
+    } catch (cause) {
+      setCameraError(messageOf(cause));
+      try {
+        const choices = await ContinuityBrowserCameraService.listCameras();
+        setCameraChoices(choices);
+        setChosenCamera((current) => choices.some((c) => c.deviceId === current)
+          ? current : (choices.find((c) => c.likelyIphone) ?? choices[0])?.deviceId ?? '');
+      } catch { setCameraChoices([]); }
+    } finally { setCameraBusy(false); }
   }
 
   async function startSession() {
@@ -276,8 +305,28 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
             {stream ? <video ref={videoRef} className="operator-camera-preview" autoPlay muted playsInline aria-label="Vista previa local de Continuity" /> :
               <div className="operator-camera-empty"><Camera size={25} /><span>Cámara local sin autorizar</span></div>}
             {cameraError && <p className="operator-error" role="alert">{cameraError}</p>}
-            <button className="operator-button operator-button--secondary" type="button" onClick={() => void authorizeCamera()}>
-              <Camera size={16} /> {stream ? 'Volver a autorizar cámara' : 'Autorizar en este Mac'}
+            {cameraChoices.length > 0 && (
+              <label className="operator-field-label">
+                <span>Cámara disponible en este Mac</span>
+                <select style={{ display: 'block', width: '100%', marginTop: 6, padding: 8 }} value={chosenCamera} onChange={(event) => setChosenCamera(event.target.value)}>
+                  {cameraChoices.map((choice) => (
+                    <option key={choice.deviceId} value={choice.deviceId}>
+                      {choice.label}{choice.likelyIphone ? ' (iPhone)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {cameraChoices.length > 0 && (
+              <button className="operator-button operator-button--secondary" type="button"
+                disabled={cameraBusy || !chosenCamera} onClick={() => void authorizeCamera(chosenCamera)}>
+                <Camera size={16} /> Usar esta cámara
+              </button>
+            )}
+            <button className="operator-button operator-button--secondary" type="button"
+              disabled={cameraBusy} onClick={() => void authorizeCamera()}>
+              <Camera size={16} /> {cameraBusy ? 'Buscando cámara del iPhone…'
+                : cameraChoices.length > 0 ? 'Buscar de nuevo' : stream ? 'Volver a autorizar cámara' : 'Autorizar en este Mac'}
             </button>
           </div>
 
