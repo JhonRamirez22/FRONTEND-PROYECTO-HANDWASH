@@ -5,7 +5,9 @@ import type {
   InfractionEvent,
   SessionSummaryEvent,
   SoapEvidence,
+  FrictionEvaluation,
 } from '@/types';
+import { FRICTION_STEPS, KIOSK_GUIDE_CODES, KIOSK_GUIDE_TONES } from '@/types';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -46,7 +48,11 @@ export class BackendMessageMapper {
     if (type && type !== 'STATE_UPDATE' && type !== 'STATE_CHANGE' && type !== 'INFRACTION') {
       return { kind: 'ignored' };
     }
-    return { kind: 'state', update: this.toStateUpdate(value) };
+    const evaluation = this.toFrictionEvaluation(value.evaluacionFriccion);
+    if (value.evaluacionFriccion != null && (!evaluation || typeof value.sessionId !== 'string')) return { kind: 'ignored' };
+    return { kind: 'state', update: { ...this.toStateUpdate(value),
+      ...(evaluation ? { frictionEvaluation: evaluation } : {}),
+    } };
   }
 
   private toStateUpdate(message: JsonRecord): DetectionStateUpdate {
@@ -61,6 +67,7 @@ export class BackendMessageMapper {
     const rawConfidence = message.confianzaCandidata;
 
     return {
+      ...(typeof message.sessionId === 'string' ? { sessionId: message.sessionId } : {}),
       currentStep: step === 'FONDO' ? null : step,
       elapsedSeconds: step && step !== 'FONDO'
         ? Math.max(0, Math.floor((this.toFiniteNumber(message.tiempoAcumuladoMs) ?? 0) / 1000))
@@ -86,6 +93,37 @@ export class BackendMessageMapper {
         : {}),
       infraction: this.toInfraction(message.infraccion, step),
     };
+  }
+
+  private toFrictionEvaluation(value: unknown): FrictionEvaluation | undefined {
+    if (!this.isRecord(value) || value.versionPolitica !== 'FRICCION_BALANCEADA_V2') return undefined;
+    const integer = (v: unknown, minimum = 0): boolean => typeof v === 'number' && Number.isSafeInteger(v) && v >= minimum;
+    const steps = (v: unknown): boolean => Array.isArray(v) && v.length === 6 && v.every((step, index) =>
+      this.isRecord(step) && step.paso === FRICTION_STEPS[index]
+      && ['PENDIENTE', 'EN_CURSO', 'VALIDADO', 'REQUIERE_REPETICION'].includes(String(step.estado))
+      && integer(step.tiempoAcreditadoMs) && integer(step.minimoRequeridoMs, 1)
+      && (step.motivo === null || typeof step.motivo === 'string'));
+    if (!integer(value.revisionEstado) || !integer(value.numeroIntento, 1)
+      || !['ESPERANDO_INICIO', 'ACTIVO', 'PAUSADO', 'COMPLETO_PARCIAL', 'INTERRUMPIDO', 'PENDIENTE_PERSISTENCIA'].includes(String(value.estadoIntento))
+      || !FRICTION_STEPS.includes(value.pasoEsperado as HandWashStep)
+      || !(value.motivoRecuperacion === null || typeof value.motivoRecuperacion === 'string')
+      || !steps(value.pasos) || !integer(value.duracionMinimaFriccionMs, 1) || !integer(value.objetivoProcedimientoMs, 1)
+      || typeof value.secuenciaValidada !== 'boolean' || typeof value.persistenciaPendiente !== 'boolean') return undefined;
+    if (value.ultimoResultado !== null && (!this.isRecord(value.ultimoResultado)
+      || !integer(value.ultimoResultado.numeroIntento, 1) || typeof value.ultimoResultado.resultado !== 'string'
+      || !(value.ultimoResultado.motivo === null || typeof value.ultimoResultado.motivo === 'string')
+      || !steps(value.ultimoResultado.pasos))) return undefined;
+    const guide = value.guia;
+    if (!this.isRecord(guide) || !KIOSK_GUIDE_CODES.includes(guide.codigo as typeof KIOSK_GUIDE_CODES[number])
+      || !KIOSK_GUIDE_TONES.includes(guide.tono as typeof KIOSK_GUIDE_TONES[number])
+      || !(guide.paso === null || FRICTION_STEPS.includes(guide.paso as HandWashStep))
+      || !(guide.faltanteMs === null || integer(guide.faltanteMs))) return undefined;
+    if (value.secuenciaValidada && (value.persistenciaPendiente || value.estadoIntento !== 'COMPLETO_PARCIAL'
+      || !(value.pasos as JsonRecord[]).every((step) => step.estado === 'VALIDADO'))) return undefined;
+    // Fail-safe (R-01): "complete" is only believable when Java validated all six movements and stored them.
+    if (guide.codigo === 'LAVADO_COMPLETO' && !value.secuenciaValidada) return undefined;
+    if (value.estadoIntento === 'COMPLETO_PARCIAL' && value.persistenciaPendiente) return undefined;
+    return value as unknown as FrictionEvaluation;
   }
 
   private toSummary(message: JsonRecord): SessionSummaryEvent {

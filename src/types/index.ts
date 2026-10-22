@@ -20,7 +20,7 @@ export type HandWashStep =
   | 'OMS_CONTACTO_RIESGO'
   | 'FONDO';
 
-export type Protocolo = 'CLINICO_QUIRURGICO' | 'DOMESTICO';
+export type Protocolo = 'AGUA_Y_JABON' | 'CLINICO_QUIRURGICO' | 'DOMESTICO';
 export type EvaluationMode = 'PROTOCOLO_OMS' | 'FRICCION_PARCIAL';
 export type SoapEvidence = 'ESPUMA_VISIBLE' | 'SIN_ESPUMA_VISIBLE' | 'NO_VERIFICABLE';
 
@@ -72,6 +72,7 @@ export interface ConnectionState {
 }
 
 export interface SessionState {
+  frictionEvaluation: FrictionEvaluation | null;
   sessionId: string | null;
   accessToken: string | null;
   isOwner: boolean;
@@ -100,6 +101,8 @@ export interface SessionState {
 
 /** A validated, single-message update from the Java session WebSocket. */
 export interface DetectionStateUpdate {
+  sessionId?: string;
+  frictionEvaluation?: FrictionEvaluation;
   currentStep: HandWashStep | null;
   elapsedSeconds: number | null;
   waitingForStart: boolean;
@@ -117,6 +120,46 @@ export interface DetectionStateUpdate {
   lastRetryError?: string;
   frictionSequenceObservedComplete?: boolean;
   infraction: InfractionEvent | null;
+}
+
+export type FrictionStepStatus = 'PENDIENTE' | 'EN_CURSO' | 'VALIDADO' | 'REQUIERE_REPETICION';
+export interface FrictionEvaluation {
+  versionPolitica: 'FRICCION_BALANCEADA_V2';
+  revisionEstado: number;
+  numeroIntento: number;
+  estadoIntento: 'ESPERANDO_INICIO' | 'ACTIVO' | 'PAUSADO' | 'COMPLETO_PARCIAL' | 'INTERRUMPIDO' | 'PENDIENTE_PERSISTENCIA';
+  pasoEsperado: HandWashStep;
+  motivoRecuperacion: string | null;
+  pasos: FrictionStepEvaluation[];
+  duracionMinimaFriccionMs: number;
+  objetivoProcedimientoMs: number;
+  secuenciaValidada: boolean;
+  persistenciaPendiente: boolean;
+  ultimoResultado: { numeroIntento: number; resultado: string; motivo: string | null; pasos: FrictionStepEvaluation[] } | null;
+  guia: KioskGuide;
+}
+
+/** Closed catalog of Java kiosk instructions; the kiosk only translates them. */
+export const KIOSK_GUIDE_CODES = [
+  'INICIA_CON_PALMAS', 'CONTINUA_PASO', 'CAMBIA_A_PASO', 'VUELVE_A_PASO', 'SIGUE_EL_ORDEN',
+  'MUESTRA_AMBAS_MANOS', 'MANTEN_EL_MOVIMIENTO', 'LAVADO_COMPLETO', 'LAVADO_INCOMPLETO',
+  'REINICIA_LAVADO', 'ESPERA_TECNICA',
+] as const;
+export type KioskGuideCode = typeof KIOSK_GUIDE_CODES[number];
+export const KIOSK_GUIDE_TONES = ['INFO', 'CORRECCION', 'EXITO', 'ALERTA', 'TECNICO'] as const;
+export type KioskGuideTone = typeof KIOSK_GUIDE_TONES[number];
+export interface KioskGuide {
+  codigo: KioskGuideCode;
+  paso: HandWashStep | null;
+  faltanteMs: number | null;
+  tono: KioskGuideTone;
+}
+export interface FrictionStepEvaluation {
+  paso: HandWashStep;
+  estado: FrictionStepStatus;
+  tiempoAcreditadoMs: number;
+  minimoRequeridoMs: number;
+  motivo: string | null;
 }
 
 export const STEP_LABELS: Partial<Record<HandWashStep, string>> & Record<string, string> = {

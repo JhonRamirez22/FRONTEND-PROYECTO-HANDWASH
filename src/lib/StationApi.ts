@@ -13,6 +13,26 @@ export interface PublicStationStatus {
   activeSession: ActiveStationSession | null;
   unchangedActiveSession?: boolean;
   resumeError: boolean;
+  /** True only while Java has photo capture active; the kiosk shows its notice and opens the Mac camera. */
+  photoEvidence: boolean;
+}
+
+export interface WebRtcAccess {
+  ticket: string;
+  /** Empty means LAN only; TURN entries carry short-lived credentials from Java. */
+  iceServers: RTCIceServer[];
+}
+
+function parseIceServers(value: unknown): RTCIceServer[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): RTCIceServer[] => {
+    if (typeof entry !== 'object' || entry === null || !Array.isArray((entry as { urls?: unknown }).urls)) return [];
+    const { urls, username, credential } = entry as { urls: unknown[]; username?: unknown; credential?: unknown };
+    const safeUrls = urls.filter((url): url is string => typeof url === 'string' && /^(stun|turn|turns):/.test(url));
+    if (safeUrls.length === 0) return [];
+    return [typeof username === 'string' && typeof credential === 'string'
+      ? { urls: safeUrls, username, credential } : { urls: safeUrls }];
+  });
 }
 
 export class StationApi {
@@ -34,6 +54,7 @@ export class StationApi {
       activeSession: isActiveSession(payload.activeSession) ? payload.activeSession : null,
       unchangedActiveSession: payload.unchangedActiveSession === true,
       resumeError: payload.resumeError === true,
+      photoEvidence: payload.photoEvidence === true,
     };
   }
 
@@ -91,7 +112,7 @@ export class StationApi {
     return payload.ticket;
   }
 
-  async webrtcTicket(sessionId: string): Promise<string> {
+  async webrtcAccess(sessionId: string): Promise<WebRtcAccess> {
     const csrf = await this.csrfToken();
     const response = await fetch('/api/station/webrtc-ticket', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -102,7 +123,22 @@ export class StationApi {
     if (!response.ok || typeof payload.ticket !== 'string' || payload.ticket.length < 32) {
       throw new Error('Java no entregó un ticket WebRTC válido para esta sesión.');
     }
-    return payload.ticket;
+    return { ticket: payload.ticket, iceServers: parseIceServers(payload.iceServers) };
+  }
+
+  /** Sends the one retained frame of a reported attempt; Java decides if it may be stored. */
+  async uploadEvidence(sessionId: string, attemptNumber: number, image: Blob): Promise<void> {
+    if (!isUuid(sessionId) || !Number.isInteger(attemptNumber) || attemptNumber < 1) return;
+    const csrf = await this.csrfToken();
+    const url = new URL('/api/station/evidence', window.location.origin);
+    url.searchParams.set('sessionId', sessionId);
+    url.searchParams.set('attempt', String(attemptNumber));
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'image/jpeg', 'X-CSRF-Token': csrf },
+      body: image,
+    });
+    if (!response.ok) throw new Error('La foto del reporte no se pudo registrar.');
   }
 
   async clearSession(): Promise<void> {
@@ -143,7 +179,7 @@ function isActiveSession(value: unknown): value is ActiveStationSession {
 }
 
 function isProtocol(value: unknown): value is Protocolo {
-  return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+  return value === 'AGUA_Y_JABON' || value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
 }
 
 function isUuid(value: string): boolean {

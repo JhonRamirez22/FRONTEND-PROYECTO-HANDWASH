@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
 import { cognitoAdminAuth } from '@/lib/adminAuth';
-import { OperatorApi, type OperatorStatus } from '@/lib/OperatorApi';
+import { OperatorApi, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
 import { ContinuityBrowserCameraService } from '@/lib/ContinuityBrowserCameraService';
-import { BrowserRtcCameraRelay, type CameraRelayState, type ProducerTelemetry } from '@/lib/BrowserRtcCameraRelay';
 import { useStationCamera } from '@/hooks/useStationCamera';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
+import { OperatorShiftPanel } from './OperatorShiftPanel';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { Protocolo } from '@/types';
 
 const operatorApi = new OperatorApi();
 const stationApi = new StationApi();
-const relay = new BrowserRtcCameraRelay();
 
 interface OperatorConsoleProps {
   authError?: string | null;
@@ -28,16 +28,17 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [error, setError] = useState<string | null>(authError ?? null);
   const [code, setCode] = useState('');
   const [stationCode, setStationCode] = useState('');
-  const [protocol, setProtocol] = useState<Protocolo>('DOMESTICO');
+  const [protocol, setProtocol] = useState<Protocolo>('AGUA_Y_JABON');
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [relayState, setRelayState] = useState<CameraRelayState | 'idle'>('idle');
-  const [telemetry, setTelemetry] = useState<ProducerTelemetry | null>(null);
+  const [shift, setShift] = useState<ShiftView | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const activeSessionId = useSessionStore((state) => state.sessionId);
   const sessionActive = useSessionStore((state) => state.isActive);
   const currentStep = useSessionStore((state) => state.currentStep);
   const { stream, setStream } = useStationCamera();
+  const relayedSession = status && station?.stationId === status.grant.stationId && sessionActive ? activeSessionId : null;
+  const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream);
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
     const currentToken = cognitoAdminAuth.getAccessToken();
     if (!currentToken) throw new Error('La sesión de operador expiró.');
@@ -51,10 +52,12 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       return;
     }
     try {
-      const [operatorStatus, localStatus] = await Promise.all([
+      const [operatorStatus, localStatus, currentShift] = await Promise.all([
         operatorApi.status(currentToken), stationApi.status(useSessionStore.getState().sessionId),
+        operatorApi.shiftStatus(currentToken).catch(() => null),
       ]);
       setStatus(operatorStatus);
+      setShift(currentShift);
       setStation(localStatus);
       const session = operatorStatus?.activeSession;
       const current = useSessionStore.getState();
@@ -89,32 +92,6 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     if (stream) void video.play().catch(() => setCameraError('El navegador no pudo mostrar la vista previa.'));
     return () => { video.srcObject = null; };
   }, [stream]);
-
-  useEffect(() => {
-    const assignedStation = status?.grant.stationId;
-    if (!sessionActive || !activeSessionId || !stream || station?.stationId !== assignedStation) {
-      setRelayState('idle');
-      setTelemetry(null);
-      return;
-    }
-    const controller = new AbortController();
-    let mounted = true;
-    let close: (() => void) | null = null;
-    setRelayState('connecting');
-    void relay.connect(activeSessionId, stream, (next) => {
-      if (mounted) setRelayState(next);
-    }, controller.signal, (next) => {
-      if (mounted) setTelemetry(next);
-    }).then((release) => {
-      if (mounted) close = release;
-      else release();
-    }).catch(() => { if (mounted) setRelayState('failed'); });
-    return () => {
-      mounted = false;
-      controller.abort();
-      close?.();
-    };
-  }, [activeSessionId, sessionActive, status?.grant.stationId, station?.stationId, stream]);
 
   async function signIn() {
     setError(null);
@@ -170,6 +147,30 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       const session = await operatorApi.startSession(token, protocol, crypto.randomUUID());
       useSessionStore.getState().startSession(session.sessionId, session.protocolo, null, true);
       connect(session.sessionId, null);
+      await refresh();
+    } catch (cause) { setError(messageOf(cause)); }
+    finally { setBusy(false); }
+  }
+
+  async function startShift(hours: number) {
+    if (!token || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await operatorApi.startShift(token, hours, protocol);
+      await refresh();
+    } catch (cause) { setError(messageOf(cause)); }
+    finally { setBusy(false); }
+  }
+
+  async function stopShift() {
+    if (!token || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await operatorApi.stopShift(token);
+      disconnect();
+      useSessionStore.getState().endSession();
       await refresh();
     } catch (cause) { setError(messageOf(cause)); }
     finally { setBusy(false); }
@@ -292,18 +293,19 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
               <StatusLine label="Transporte Java" ok={telemetry?.javaTransport === 'connected'}
                 detail={telemetry?.javaTransport === 'connected' ? 'Conectado' : 'Esperando inferencia'} />
             </div>
+            <OperatorShiftPanel shift={shift} busy={busy} onStart={(hours) => void startShift(hours)} onStop={() => void stopShift()} />
             {sessionActive ? <>
               <div className="operator-active-session"><span>Sesión Java activa</span><code>{activeSessionId}</code>
                 <strong>{currentStep ? `Paso confirmado: ${currentStep}` : 'Esperando primera confirmación de Java'}</strong></div>
-              <button className="operator-button operator-button--danger" type="button" onClick={() => void stopSession()} disabled={busy}>
+              {!shift?.active && <button className="operator-button operator-button--danger" type="button" onClick={() => void stopSession()} disabled={busy}>
                 {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Square size={15} />} Detener sesión
-              </button>
-            </> : <>
-              <label className="operator-field-label" htmlFor="operator-protocol">Objetivo de duración</label>
+              </button>}
+            </> : shift?.active ? <p className="operator-footnote" role="status">El turno está activo: Java abrirá la sesión en unos segundos.</p> : <>
+              <label className="operator-field-label" htmlFor="operator-protocol">Protocolo</label>
               <select id="operator-protocol" value={protocol} onChange={(event) => setProtocol(event.target.value as Protocolo)}>
-                <option value="DOMESTICO">40 segundos</option><option value="CLINICO_QUIRURGICO">60 segundos</option>
+                <option value="AGUA_Y_JABON">Agua y jabón · seis movimientos</option>
               </select>
-              <p className="operator-footnote">Objetivo de este piloto; no acredita el protocolo OMS completo ni una decisión clínica.</p>
+              <p className="operator-footnote">Evalúa los seis movimientos de fricción con los tiempos del perfil vigente; no verifica mojado, jabón ni enjuague, ni es una decisión clínica.</p>
               <button className="operator-button operator-button--primary" type="button" onClick={() => void startSession()} disabled={busy}>
                 {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Play size={16} />} Iniciar detección
               </button>

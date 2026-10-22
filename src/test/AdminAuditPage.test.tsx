@@ -20,6 +20,11 @@ const { auth, api } = vi.hoisted(() => ({
     stations: vi.fn(),
     issueStationCode: vi.fn(),
     revokeStation: vi.fn(),
+    washReports: vi.fn(),
+    auditChain: vi.fn(),
+    changeControl: vi.fn(),
+    washTrends: vi.fn(),
+    sealAuditChain: vi.fn(),
   },
 }));
 
@@ -33,6 +38,11 @@ vi.mock('../lib/AdminAuditApi', () => ({
     stations = api.stations;
     issueStationCode = api.issueStationCode;
     revokeStation = api.revokeStation;
+    washReports = api.washReports;
+    auditChain = api.auditChain;
+    changeControl = api.changeControl;
+    washTrends = api.washTrends;
+    sealAuditChain = api.sealAuditChain;
   },
 }));
 
@@ -44,6 +54,7 @@ describe('AdminAuditPage', () => {
     auth.getAccessToken.mockReturnValue('access-token');
     auth.getHumanRoles.mockReturnValue(['ADMIN']);
     api.encounters.mockResolvedValue([]);
+    api.washReports.mockResolvedValue([]);
     api.events.mockResolvedValue([]);
     api.accessEvents.mockResolvedValue([{
       eventId: 1,

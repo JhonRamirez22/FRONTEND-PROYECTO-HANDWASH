@@ -42,7 +42,7 @@ describe('public kiosk routing', () => {
 
     render(<App />);
 
-    expect(await screen.findByText(/Conexión interrumpida\. El puesto requiere revisión del operador\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Sin conexión con el servidor\. El lavado no se está evaluando\./)).toBeInTheDocument();
     expect(document.querySelector('.kiosk-connection--error')).toBeInTheDocument();
   });
 

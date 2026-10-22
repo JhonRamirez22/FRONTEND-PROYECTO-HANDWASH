@@ -82,7 +82,181 @@ export interface IssuedOperatorAccessCode {
   createdAtEpochMs: number;
 }
 
+export type WashOutcome = 'CORRECTO' | 'REPORTADO' | 'REINICIADO' | 'INTERRUMPIDO';
+
+export interface WashReportStep {
+  paso: string;
+  estado: 'PENDIENTE' | 'EN_CURSO' | 'VALIDADO' | 'REQUIERE_REPETICION';
+  tiempoAcreditadoMs: number;
+  minimoRequeridoMs: number;
+  motivo: string | null;
+}
+
+export interface WashReportRecord {
+  sessionId: string;
+  attemptNumber: number;
+  policyVersion: string;
+  resultado: WashOutcome;
+  motivo: string | null;
+  inicioEpochMs: number | null;
+  finEpochMs: number | null;
+  duracionMs: number | null;
+  lento: boolean;
+  estadoEvidencia: 'DESACTIVADA' | 'PENDIENTE' | 'NO_CAPTURADA' | 'CAPTURADA' | 'EXPIRADA' | null;
+  pasos: WashReportStep[];
+}
+
+export interface EvidenceSettings {
+  /** Deployment flag and bucket/key present; without it the switch cannot be turned on. */
+  deploymentEnabled: boolean;
+  configured: boolean;
+  switchOn: boolean;
+  captureActive: boolean;
+  retentionDays: number;
+  updatedBy: string;
+  updatedAtEpochMs: number;
+}
+
+export interface AuditChainProblem { eventId: number | null; code: string }
+export interface AuditSeal {
+  sealId: number; sealedAtEpochMs: number; toEventId: number | null; headHash: string; eventCount: number;
+  resultsCount: number; keyed: boolean; objectKey: string | null;
+}
+export interface AuditChainStatus {
+  chain: {
+    ok: boolean; keyed: boolean; checked: number; firstChainedEventId: number | null; lastEventId: number | null;
+    headHash: string; matchesLatestSeal: boolean; problems: AuditChainProblem[];
+  };
+  resultsMatchLatestSeal: boolean;
+  seals: AuditSeal[];
+}
+
+export interface ProfileChange {
+  perfil: { version: number; tiemposPasoMs: Record<string, number>; duracionTotalMs: number; umbralLentoMs: number;
+    creadoPor: string; creadoEnEpochMs: number };
+  motivo: string | null;
+  revertidoDe: number | null;
+  estado: 'ACTIVE' | 'PENDING' | 'REJECTED';
+  decididoPor: string | null;
+  decididoEnEpochMs: number | null;
+  conInformeDeValidacion: boolean;
+}
+export interface ModelStatus {
+  model: { modelSha256: string; modelVersion: string; datasetVersion: string; firstSeenEpochMs: number;
+    lastSeenEpochMs: number; encounters: number; reports: number };
+  evidencia: 'SIN_EVIDENCIA' | 'CON_INFORME';
+}
+export interface ValidationReport {
+  reportId: number; modelSha256: string; profileVersion: number | null; title: string; summary: string;
+  documentSha256: string; createdBy: string; createdAtEpochMs: number;
+}
+export interface ChangeControlOverview {
+  ajustes: { secondApproverRequired: boolean; updatedBy: string; updatedAtEpochMs: number };
+  vigente: ProfileChange | null;
+  cambios: ProfileChange[];
+  modelos: ModelStatus[];
+  informes: ValidationReport[];
+}
+export interface ValidationReportInput {
+  modeloSha256: string; versionPerfil: number | null; titulo: string; resumen: string; documentoSha256: string;
+}
+
+export interface TrendBucket {
+  total: number; correctos: number; reportados: number; reiniciados: number; interrumpidos: number; lentos: number;
+  duracionMediaCorrectosMs: number | null; porcentajeCorrectos: number | null;
+}
+export interface WashTrends {
+  zonaHoraria: string;
+  total: TrendBucket;
+  dias: { fecha: string; metricas: TrendBucket }[];
+  turnos: Record<'MANANA' | 'TARDE' | 'NOCHE', TrendBucket>;
+  movimientosOmitidosEnReportados: Record<string, number>;
+}
+
+export interface WashReportFilter {
+  desde: number;
+  hasta: number;
+  resultado: WashOutcome | null;
+  limit: number;
+}
+
 export class AdminAuditApi {
+  async washReports(token: string, filter: WashReportFilter, signal?: AbortSignal): Promise<WashReportRecord[]> {
+    const params = new URLSearchParams({
+      desde: String(filter.desde), hasta: String(filter.hasta), limit: String(filter.limit),
+    });
+    if (filter.resultado) params.set('resultado', filter.resultado);
+    return this.request(`/api/v1/admin/wash-reports?${params.toString()}`, token, signal);
+  }
+
+  async washTrends(token: string, desde: number, hasta: number, signal?: AbortSignal): Promise<WashTrends> {
+    return this.request(`/api/v1/admin/wash-stats/trends?desde=${desde}&hasta=${hasta}`, token, signal);
+  }
+
+  /** Anonymous CSV of finished washes; the server audits every export and sets the file name. */
+  async washCsv(token: string, desde: number, hasta: number): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${RuntimeEndpointConfig.apiBaseUrl()}/api/v1/admin/wash-stats/export.csv?desde=${desde}&hasta=${hasta}`, {
+      method: 'GET', credentials: 'omit', cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'text/csv' },
+    });
+    if (response.status === 401) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
+    if (response.status === 400) throw new Error('El rango tiene demasiados lavados o fechas inválidas. Acótalo.');
+    if (!response.ok) throw new Error('No fue posible generar el archivo. Reintenta más tarde.');
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const filename = /filename="([A-Za-z0-9_.-]+)"/.exec(disposition)?.[1] ?? 'handwash-lavados.csv';
+    return { blob: await response.blob(), filename };
+  }
+
+  async changeControl(token: string, signal?: AbortSignal): Promise<ChangeControlOverview> {
+    return this.request('/api/v1/admin/change-control', token, signal);
+  }
+
+  async revertProfile(token: string, version: number, motivo: string): Promise<ProfileChange> {
+    return this.request(`/api/v1/admin/change-control/profile/${version}/revert`, token, undefined, 'POST', { motivo });
+  }
+
+  async decideProfile(token: string, version: number, decision: 'approve' | 'reject'): Promise<ProfileChange> {
+    return this.request(`/api/v1/admin/change-control/profile/${version}/${decision}`, token, undefined, 'POST');
+  }
+
+  async setSecondApprover(token: string, required: boolean): Promise<void> {
+    await this.request('/api/v1/admin/change-control/settings', token, undefined, 'PUT', { segundoAprobadorRequerido: required });
+  }
+
+  async registerValidationReport(token: string, input: ValidationReportInput): Promise<ValidationReport> {
+    return this.request('/api/v1/admin/change-control/validation-reports', token, undefined, 'POST', input);
+  }
+
+  /** Recomputes the whole hash chain on the server; the read itself is audited. */
+  async auditChain(token: string, signal?: AbortSignal): Promise<AuditChainStatus> {
+    return this.request('/api/v1/admin/audit-chain', token, signal);
+  }
+
+  async sealAuditChain(token: string): Promise<AuditSeal | null> {
+    return this.request('/api/v1/admin/audit-chain/seal', token, undefined, 'POST');
+  }
+
+  async evidenceSettings(token: string, signal?: AbortSignal): Promise<EvidenceSettings> {
+    return this.request('/api/v1/admin/evidence', token, signal);
+  }
+
+  async setEvidenceEnabled(token: string, enabled: boolean): Promise<EvidenceSettings> {
+    return this.request('/api/v1/admin/evidence', token, undefined, 'PUT', { enabled });
+  }
+
+  /** Streams the private photo through Java so every view is audited; no public or presigned URL exists. */
+  async evidencePhoto(token: string, sessionId: string, attemptNumber: number, signal?: AbortSignal): Promise<Blob> {
+    const response = await fetch(`${RuntimeEndpointConfig.apiBaseUrl()}/api/v1/admin/evidence/`
+      + `${encodeURIComponent(sessionId)}/${attemptNumber}/photo`, {
+      method: 'GET', credentials: 'omit', cache: 'no-store', signal,
+      headers: { Authorization: `Bearer ${token}`, Accept: 'image/jpeg' },
+    });
+    if (response.status === 401) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
+    if (response.status === 404) throw new Error('La foto ya no existe (venció su retención).');
+    if (!response.ok) throw new Error('No fue posible abrir la foto. Reintenta más tarde.');
+    return response.blob();
+  }
+
   async encounters(token: string, limit = 50): Promise<EncounterAuditRecord[]> {
     return this.request(`/api/v1/admin/encounters?limit=${limit}`, token);
   }

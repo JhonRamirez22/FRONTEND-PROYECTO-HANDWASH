@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorClaim, operatorStartSession, startSession, status,
+  csrf, enroll, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
+  evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
 const origin = 'https://frontend-proyecto-handwash.vercel.app';
@@ -85,6 +86,72 @@ describe('station Vercel BFF', () => {
     expect(response.headers.get('set-cookie')).toContain('hw_station_session=');
     expect(response.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
     expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
+  });
+
+  it('recovers an active AGUA_Y_JABON session, the only protocol the operator can start', async () => {
+    const sessionToken = 'session_capability_' + 't'.repeat(40);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        registered: true,
+        stationId: 'd398e61f-56d9-47d3-9381-bdff87731931',
+        stationName: 'Lavamanos A',
+        activeSessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618',
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618',
+        protocolo: 'AGUA_Y_JABON',
+        accessToken: sessionToken,
+        accessTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }), { status: 200 }));
+
+    const response = await status(request('/api/station/status', 'GET', undefined, {
+      Cookie: `hw_station_credential=${stationCredential}`,
+    }));
+    const payload = await response.json() as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ registered: true, stationName: 'Lavamanos A' });
+    expect(payload.activeSession).toEqual({
+      sessionId: 'a23f6a29-281a-4eac-9d7c-716d761b9618', protocolo: 'AGUA_Y_JABON',
+    });
+    expect(JSON.stringify(payload)).not.toContain(sessionToken);
+    expect(response.headers.get('set-cookie')).toContain('hw_station_session=');
+    expect(response.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
+    expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
+  });
+
+  describe('known session and its capability cookie', () => {
+    const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+    const sessionToken = 'session_capability_' + 't'.repeat(40);
+    const me = () => new Response(JSON.stringify({
+      registered: true, stationId: 'd398e61f-56d9-47d3-9381-bdff87731931', stationName: 'Lavamanos A', activeSessionId: sessionId,
+    }), { status: 200 });
+
+    it('keeps the shortcut while the session cookie is still present', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(me());
+      const response = await status(request(`/api/station/status?knownSessionId=${sessionId}`, 'GET', undefined, {
+        Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionToken}`,
+      }));
+
+      expect(await response.json()).toMatchObject({ unchangedActiveSession: true });
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-issues the cookie when the known session has lost it, so the camera link can be rebuilt', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(me()).mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionId, protocolo: 'AGUA_Y_JABON', accessToken: sessionToken,
+        accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      }), { status: 200 }));
+      const response = await status(request(`/api/station/status?knownSessionId=${sessionId}`, 'GET', undefined, {
+        Cookie: `hw_station_credential=${stationCredential}`,
+      }));
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(payload.unchangedActiveSession).toBeFalsy();
+      expect(payload.activeSession).toEqual({ sessionId, protocolo: 'AGUA_Y_JABON' });
+      expect(response.headers.get('set-cookie')).toContain(`hw_station_session=${sessionToken}`);
+      expect(JSON.stringify(payload)).not.toContain(sessionToken);
+      expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe('https://java.example.com/api/v1/stations/resume');
+    });
   });
 
   it('clears both cookies when Java reports that the station credential was revoked', async () => {
@@ -208,5 +275,189 @@ describe('station Vercel BFF', () => {
     expect(JSON.stringify(payload)).not.toContain('must-not-leak');
     expect(response.headers.get('set-cookie')).toContain('hw_station_session=');
     expect(response.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
+  });
+
+  describe('WebRTC ticket with ICE servers', () => {
+    const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+    const sessionCookie = 'session_capability_' + 't'.repeat(40);
+    const ticket = 'k'.repeat(43);
+
+    async function ticketWith(upstream: Record<string, unknown>) {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          ticket, peerRole: 'BROWSER', expiresAt: new Date(Date.now() + 30_000).toISOString(), ...upstream,
+        }), { status: 200 }));
+      return webrtcTicket(request('/api/station/webrtc-ticket', 'POST', { sessionId }, {
+        Origin: origin, 'X-CSRF-Token': csrfToken,
+        Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionCookie}; hw_station_csrf=${csrfToken}`,
+      }));
+    }
+
+    it('re-emits only allowlisted STUN/TURN fields from Java', async () => {
+      const response = await ticketWith({ iceServers: [
+        { urls: ['stun:stun.example.org:3478'], leaked: 'x' },
+        { urls: ['turns:turn.example.org:443?transport=tcp'], username: '1792603600:s:BROWSER', credential: 'cred=', secret: 'no' },
+      ] });
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(payload.ticket).toBe(ticket);
+      expect(payload.iceServers).toEqual([
+        { urls: ['stun:stun.example.org:3478'] },
+        { urls: ['turns:turn.example.org:443?transport=tcp'], username: '1792603600:s:BROWSER', credential: 'cred=' },
+      ]);
+      expect(JSON.stringify(payload)).not.toContain('leaked');
+      expect(JSON.stringify(payload)).not.toContain('"secret"');
+    });
+
+    it('treats a Java build without iceServers as LAN only', async () => {
+      const response = await ticketWith({});
+      expect(response.status).toBe(200);
+      expect((await response.json() as Record<string, unknown>).iceServers).toEqual([]);
+    });
+
+    it.each([
+      ['a non-ICE scheme', [{ urls: ['http://evil.example'] }]],
+      ['credentials inside the URL', [{ urls: ['turn:user:pass@turn.example.org'], username: 'u', credential: 'c' }]],
+      ['TURN without credentials', [{ urls: ['turn:turn.example.org:3478'] }]],
+      ['STUN with credentials', [{ urls: ['stun:stun.example.org'], username: 'u', credential: 'c' }]],
+      ['too many servers', Array.from({ length: 5 }, () => ({ urls: ['stun:stun.example.org'] }))],
+      ['a non-array value', { urls: ['stun:stun.example.org'] }],
+    ])('rejects %s instead of forwarding it to the browser', async (_name, iceServers) => {
+      const response = await ticketWith({ iceServers });
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({ code: 'WEBRTC_TICKET_INVALID' });
+    });
+  });
+
+  describe('operator shift (unattended mode)', () => {
+    const bearer = 'Bearer aaaa.bbbb.cccc';
+    // The BFF rate limiter is keyed by client address: give every request its own.
+    let address = 0;
+    const fresh = (headers: Record<string, string>) => ({ ...headers, 'X-Forwarded-For': `198.51.100.${++address}` });
+    const mutation = () => fresh({ Origin: origin, Authorization: bearer, 'X-CSRF-Token': csrfToken, Cookie: `hw_station_csrf=${csrfToken}` });
+    const open = { active: true, protocolo: 'AGUA_Y_JABON', startedAtEpochMs: 1_000, endsAtEpochMs: 9_000 };
+
+    it('reports the shift with only the fields the kiosk needs', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...open, secret: 'x' }), { status: 200 }));
+      const response = await operatorShiftStatus(request('/api/operator?action=shift', 'GET', undefined, { Authorization: bearer }));
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(open);
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe('https://java.example.com/api/v1/operator/shift');
+    });
+
+    it('requires a bearer token and rejects malformed Java answers', async () => {
+      expect((await operatorShiftStatus(request('/api/operator?action=shift', 'GET'))).status).toBe(401);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      for (const bad of [{ active: 'yes' }, { active: true, protocolo: 'OTRO', startedAtEpochMs: 1, endsAtEpochMs: 2 },
+        { active: true, protocolo: 'AGUA_Y_JABON', startedAtEpochMs: null, endsAtEpochMs: 2 }]) {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(bad), { status: 200 }));
+        expect((await operatorShiftStatus(request('/api/operator?action=shift', 'GET', undefined, { Authorization: bearer }))).status).toBe(502);
+      }
+    });
+
+    it('starts a shift with validated hours and forwards the Java conflict code', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(open), { status: 200 }));
+      const ok = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 10, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ hours: 10, protocolo: 'AGUA_Y_JABON' });
+
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'TURNO_YA_ACTIVO' }), { status: 409 }));
+      const conflict = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 8, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(conflict.status).toBe(409);
+      expect(await conflict.json()).toEqual({ code: 'TURNO_YA_ACTIVO' });
+    });
+
+    it.each([0, 17, 1.5, '8', null, undefined])('rejects %s hours without contacting Java', async (hours) => {
+      const response = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours, protocolo: 'AGUA_Y_JABON' }, mutation()));
+      expect(response.status).toBe(400);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('protects start and stop with origin and CSRF', async () => {
+      const noCsrf = () => fresh({ Origin: origin, Authorization: bearer });
+      expect((await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours: 8, protocolo: 'AGUA_Y_JABON' }, noCsrf()))).status).toBe(403);
+      expect((await operatorShiftStop(request('/api/operator?action=shift-stop', 'POST', {}, noCsrf()))).status).toBe(403);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('stops the shift through Java and clears the session capability cookie', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const response = await operatorShiftStop(request('/api/operator?action=shift-stop', 'POST', {}, mutation()));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('set-cookie')).toContain('hw_station_session=;');
+      expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe('DELETE');
+    });
+  });
+});
+
+describe('evidence upload BFF', () => {
+  const sessionId = 'a23f6a29-281a-4eac-9d7c-716d761b9618';
+  const sessionCookie = 'session_capability_' + 't'.repeat(40);
+  const headers = (extra: Record<string, string> = {}) => ({
+    Origin: origin, 'X-CSRF-Token': csrfToken, 'Content-Type': 'image/jpeg',
+    'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250)}-${Math.random()}`,
+    Cookie: `hw_station_credential=${stationCredential}; hw_station_session=${sessionCookie}; hw_station_csrf=${csrfToken}`,
+    ...extra,
+  });
+  const jpeg = (size = 2_000) => { const bytes = new Uint8Array(size); bytes.set([0xff, 0xd8, 0xff]); return bytes; };
+  const upload = (body: Uint8Array, query = `?sessionId=${sessionId}&attempt=2`, extra: Record<string, string> = {}) =>
+    evidenceUpload(new Request(`https://frontend-proyecto-handwash.vercel.app/api/station/evidence${query}`,
+      { method: 'POST', headers: headers(extra), body }));
+
+  beforeEach(() => {
+    vi.stubEnv('HANDWASH_PUBLIC_ORIGIN', origin);
+    vi.stubEnv('HANDWASH_BACKEND_ORIGIN', 'https://java.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  it('forwards the frame with the station credential and session capability', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ stored: true }), { status: 200 }));
+
+    const response = await upload(jpeg());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ stored: true });
+    const [url, init] = vi.mocked(fetch).mock.calls[1];
+    expect(String(url)).toBe(`https://java.example.com/api/v1/stations/evidence/${sessionId}/2`);
+    const sent = init?.headers as Record<string, string>;
+    expect(sent['X-Station-Credential']).toBe(stationCredential);
+    expect(sent['X-Session-Token']).toBe(sessionCookie);
+    expect(sent['Content-Type']).toBe('image/jpeg');
+  });
+
+  it('rejects anything that is not a bounded JPEG before contacting Java', async () => {
+    expect((await upload(new Uint8Array(2_000))).status).toBe(400);
+    expect((await upload(jpeg(100))).status).toBe(400);
+    expect((await upload(jpeg(301 * 1024))).status).toBe(413);
+    expect((await upload(jpeg(), undefined, { 'Content-Type': 'image/png' })).status).toBe(415);
+    expect((await upload(jpeg(), '?sessionId=nope&attempt=2')).status).toBe(400);
+    expect((await upload(jpeg(), `?sessionId=${sessionId}&attempt=0`)).status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('needs origin, CSRF and the session capability', async () => {
+    expect((await upload(jpeg(), undefined, { Origin: 'https://evil.example' })).status).toBe(403);
+    expect((await upload(jpeg(), undefined, { 'X-CSRF-Token': 'b'.repeat(64) })).status).toBe(403);
+    expect((await upload(jpeg(), undefined, { Cookie: `hw_station_csrf=${csrfToken}` })).status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a session that is not the station active one and relays Java refusals by code', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: 'other' }), { status: 200 }));
+    expect((await upload(jpeg())).status).toBe(403);
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ registered: true, activeSessionId: sessionId }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'FOTO_DESACTIVADA', leaked: 'x' }), { status: 403 }));
+    const refused = await upload(jpeg());
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ code: 'FOTO_DESACTIVADA' });
   });
 });

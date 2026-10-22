@@ -1,38 +1,51 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BrowserRtcCameraRelay, type CameraRelayState, type ProducerTelemetry } from '@/lib/BrowserRtcCameraRelay';
 import { DeploymentStatusService } from '@/lib/DeploymentStatusService';
 import { stationApi } from '@/lib/StationApi';
+import { evaluateStationHealth, type StationGate } from '@/lib/StationHealth';
 import { useSession } from '@/hooks/useSession';
 import { useStationCamera } from '@/hooks/useStationCamera';
+import { useCameraRecovery } from '@/hooks/useCameraRecovery';
+import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
+import { usePresenceCamera } from '@/hooks/usePresenceCamera';
+import { usePresenceEvidence } from '@/hooks/usePresenceEvidence';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { LiveCameraFeed } from './LiveCameraFeed';
 import { KioskProgress } from './KioskProgress';
 
-type Gate = 'checking' | 'ready' | 'unregistered' | 'unavailable' | 'resume-error';
-const relay = new BrowserRtcCameraRelay();
+type Gate = StationGate;
 const deployment = new DeploymentStatusService();
 
 export function KioskScreen() {
   const [gate, setGate] = useState<Gate>('checking');
   const [stationName, setStationName] = useState('Puesto de lavado');
-  const [relayStatus, setRelayStatus] = useState<CameraRelayState | 'idle'>('idle');
-  const [telemetry, setTelemetry] = useState<ProducerTelemetry | null>(null);
-  const [connectionMessage, setConnectionMessage] = useState('Verificando el puesto…');
+  const [photoEvidence, setPhotoEvidence] = useState(false);
   const [clinicalStatus, setClinicalStatus] = useState(DeploymentStatusService.unverified());
   const { stream } = useStationCamera();
   const { resume, disconnect } = useSession();
   const sessionId = useSessionStore((state) => state.sessionId);
   const active = useSessionStore((state) => state.isActive);
-  const intention = useSessionStore((state) => state.estadoIntencion);
   const connection = useConnectionStore((state) => state.status);
+  const reconnectAttempts = useConnectionStore((state) => state.reconnectAttempts);
   const generation = useRef(0);
-  const connectionTone = gate === 'checking' ? 'checking'
-    : gate === 'unregistered' || (active && !stream) ? 'setup'
-      : gate === 'unavailable' || gate === 'resume-error'
-        || (active && (relayStatus === 'failed' || connection === 'disconnected')) ? 'error'
-        : telemetry?.activeModelsReady && telemetry.javaTransport === 'connected' ? 'connected'
-          : 'waiting';
+  const supervised = useRelaySupervisor(active ? sessionId : null, stream);
+  const { state: relayStatus, telemetry } = supervised;
+  useCameraRecovery(gate === 'ready' && active, stream);
+  const frictionEvaluation = useSessionStore((state) => state.frictionEvaluation);
+  const photoActive = photoEvidence && gate === 'ready' && active;
+  const presenceStream = usePresenceCamera(photoActive);
+  usePresenceEvidence(photoActive, presenceStream, sessionId, frictionEvaluation);
+  const health = evaluateStationHealth({
+    gate, sessionActive: active, hasStream: Boolean(stream),
+    // The socket reports "reconnecting" during each retry; after a failed attempt that is still an outage.
+    websocket: connection === 'reconnecting' && reconnectAttempts > 0 ? 'disconnected' : connection,
+    relay: relayStatus, relayStalledMs: supervised.stalledMs, telemetryStale: supervised.telemetryStale,
+    javaTransport: telemetry?.javaTransport ?? null,
+  });
+  const connectionTone = health.code === 'CHECKING' ? 'checking' : health.code === 'SETUP' ? 'setup'
+    : health.level === 'offline' ? 'error' : health.level === 'ok' ? 'connected' : 'waiting';
+  const connectionMessage = health.level === 'ok'
+    ? 'Evaluación en curso · estado confirmado por Java.' : `${health.title}. ${health.detail}`;
 
   const refresh = useCallback(async () => {
     const current = ++generation.current;
@@ -42,16 +55,15 @@ export function KioskScreen() {
       if (current !== generation.current) return;
       if (!status.registered || !status.stationName) {
         setGate('unregistered');
-        setConnectionMessage('Puesto pendiente de configuración. Solicita ayuda al operador.');
         if (currentSessionId) {
           disconnect();
           useSessionStore.getState().endSession();
         }
       } else {
         setStationName(status.stationName);
+        setPhotoEvidence(status.photoEvidence);
         if (status.resumeError) {
           setGate('resume-error');
-          setConnectionMessage('Sesión no recuperable. Intervención del operador requerida.');
         } else if (status.unchangedActiveSession && currentSessionId) {
           setGate('ready');
         } else if (status.activeSession) {
@@ -68,7 +80,6 @@ export function KioskScreen() {
     } catch {
       if (current !== generation.current) return;
       setGate('unavailable');
-      setConnectionMessage('Conexión interrumpida. El puesto requiere revisión del operador.');
     }
   }, [disconnect, resume]);
 
@@ -89,49 +100,6 @@ export function KioskScreen() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (!active || !sessionId || !stream) {
-      setRelayStatus('idle');
-      setTelemetry(null);
-      return;
-    }
-    const controller = new AbortController();
-    let mounted = true;
-    let close: (() => void) | null = null;
-    setRelayStatus('connecting');
-    void relay.connect(sessionId, stream, (state) => {
-      if (mounted) setRelayStatus(state);
-    }, controller.signal, (next) => {
-      if (mounted) setTelemetry(next);
-    }).then((release) => {
-      if (mounted) close = release;
-      else release();
-    }).catch(() => {
-      if (mounted) setRelayStatus('failed');
-    });
-    return () => {
-      mounted = false;
-      controller.abort();
-      close?.();
-    };
-  }, [active, sessionId, stream]);
-
-  useEffect(() => {
-    if (gate === 'checking') setConnectionMessage('Verificando el puesto…');
-    else if (gate === 'unregistered') setConnectionMessage('Puesto pendiente de configuración. Solicita ayuda al operador.');
-    else if (gate === 'resume-error') setConnectionMessage('Sesión no recuperable. Intervención del operador requerida.');
-    else if (gate === 'unavailable') setConnectionMessage('Conexión interrumpida. El puesto requiere revisión del operador.');
-    else if (!active) setConnectionMessage('Esperando al operador.');
-    else if (!stream) setConnectionMessage('Sesión activa · cámara sin conexión. Solicita ayuda al operador.');
-    else if (relayStatus === 'failed') setConnectionMessage('Conexión con el PC interrumpida. Solicita ayuda al operador.');
-    else if (telemetry?.activeModelsReady && telemetry.javaTransport === 'connected') {
-      setConnectionMessage('Evaluación en curso · estado confirmado por Java.');
-    } else if (relayStatus === 'connected') setConnectionMessage('Video conectado · esperando inferencia del PC.');
-    else if (connection === 'reconnecting' || connection === 'disconnected') {
-      setConnectionMessage('Reconectando con Java…');
-    } else setConnectionMessage('Sesión activa · esperando al PC con YOLO.');
-  }, [active, connection, gate, intention, relayStatus, stream, telemetry]);
-
   return (
     <main className="patient-kiosk" aria-label="Puesto de lavado de manos">
       <header className="kiosk-header">
@@ -141,14 +109,27 @@ export function KioskScreen() {
           <span>{connectionMessage}</span>
         </div>
       </header>
+      {health.level === 'offline' && (
+        <div className="kiosk-offline-banner" role="alert">
+          <strong>{health.title}</strong><span>{health.detail}</span>
+        </div>
+      )}
       <div className="kiosk-layout">
         <div className="kiosk-camera-region">
           <LiveCameraFeed passive browserStream={stream} relayStatus={relayStatus}
             producerTelemetry={telemetry} backendStatus={clinicalStatus} backendLoading={false} />
         </div>
-        <KioskProgress />
+        <KioskProgress evaluating={health.level !== 'offline'} />
       </div>
-      <footer className="kiosk-footer">{stationName} · Piloto no clínico · no se guarda video ni imágenes</footer>
+      {photoEvidence && (
+        <p className="kiosk-photo-notice" role="note">
+          Este puesto toma una foto solo si el lavado queda incompleto y se reporta. Los lavados correctos no guardan imágenes.
+        </p>
+      )}
+      <footer className="kiosk-footer">
+        {stationName} · Piloto no clínico · {photoEvidence
+          ? 'no se guarda video; foto solo en lavados reportados' : 'no se guarda video ni imágenes'}
+      </footer>
     </main>
   );
 }

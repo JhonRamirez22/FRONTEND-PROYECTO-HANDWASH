@@ -18,6 +18,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
   const retries = useSessionStore((s) => s.intentosReiniciados);
   const lastRetryError = useSessionStore((s) => s.ultimoErrorReinicio);
   const mode = useSessionStore((s) => s.modoEvaluacion);
+  const evaluation = useSessionStore((s) => s.frictionEvaluation);
   const soapCoverage = useSessionStore((s) => s.coberturaJabon);
   const soapCoverageComplete = useSessionStore((s) => s.coberturaJabonCompleta);
   const intentionState = useSessionStore((s) => s.estadoIntencion);
@@ -51,6 +52,11 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       return summarySequenceObserved ? 'informational' : 'pending';
     }
     if (!isActive) return 'pending';
+    if (evaluation) {
+      const status = evaluation.pasos.find((item) => item.paso === step)?.estado;
+      return status === 'VALIDADO' ? 'informational'
+        : status === 'EN_CURSO' || status === 'REQUIERE_REPETICION' ? 'active' : 'pending';
+    }
     if (infractionSteps.has(step)) return 'infraction';
     if (mode === 'FRICCION_PARCIAL' && frictionSequenceObservedComplete) return 'informational';
     if (step === currentStep) return 'active';
@@ -107,6 +113,17 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
           </div>
         )}
       </div>
+
+      {evaluation && (
+        <p className="step-intention-reason mb-4" role="status">
+          Intento {evaluation.numeroIntento} · {evaluation.estadoIntento === 'PENDIENTE_PERSISTENCIA'
+            ? 'Guardado pendiente; avisa al operador'
+            : evaluation.secuenciaValidada ? 'Seis movimientos validados por Java, sin aprobación clínica'
+            : evaluation.estadoIntento === 'PAUSADO' ? `En pausa. Continúa con ${STEP_LABELS[evaluation.pasoEsperado]}`
+            : evaluation.estadoIntento === 'INTERRUMPIDO' ? 'Intento interrumpido'
+            : `Paso esperado: ${STEP_LABELS[evaluation.pasoEsperado]}`}
+        </p>
+      )}
 
       {isActive && mode !== 'PROTOCOLO_OMS' && (
         <div className="step-intention-panel mb-4" role="status" aria-live="polite">
@@ -206,7 +223,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
                 >
                   {STEP_LABELS[step] ?? step}
                 </span>
-                {status === 'active' && <span className="step-confirmed-label">Estado Java: en curso</span>}
+                {status === 'active' && <span className="step-confirmed-label">Estado Java: {evaluation?.pasos.find((item) => item.paso === step)?.estado === 'REQUIERE_REPETICION' ? 'corrección pendiente' : 'en curso'}</span>}
                 {status === 'infraction' && (
                   <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive uppercase">
                     Infraccion

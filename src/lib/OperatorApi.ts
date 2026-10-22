@@ -66,6 +66,42 @@ export class OperatorApi {
     return payload;
   }
 
+  async shiftStatus(accessToken: string): Promise<ShiftView> {
+    const response = await fetch('/api/operator?action=shift', {
+      method: 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || !isShift(payload)) throw new Error(messageFor(payload.code, response.status));
+    return payload;
+  }
+
+  async startShift(accessToken: string, hours: number, protocolo: Protocolo): Promise<ShiftView> {
+    const response = await fetch('/api/operator?action=shift', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        'X-CSRF-Token': await csrfToken(),
+      },
+      body: JSON.stringify({ hours, protocolo }),
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || !isShift(payload) || !payload.active) throw new Error(messageFor(payload.code, response.status));
+    return payload;
+  }
+
+  async stopShift(accessToken: string): Promise<void> {
+    const response = await fetch('/api/operator?action=shift-stop', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        'X-CSRF-Token': await csrfToken(),
+      },
+      body: '{}',
+    });
+    if (!response.ok && response.status !== 404) throw new Error(messageFor((await readPayload(response)).code, response.status));
+  }
+
   async stopSession(accessToken: string, sessionId: string): Promise<void> {
     const response = await fetch('/api/operator/stop', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -127,10 +163,27 @@ function isSession(value: unknown): value is OperatorSession {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   return typeof item.sessionId === 'string'
-    && (item.protocolo === 'DOMESTICO' || item.protocolo === 'CLINICO_QUIRURGICO');
+    && (item.protocolo === 'AGUA_Y_JABON' || item.protocolo === 'DOMESTICO' || item.protocolo === 'CLINICO_QUIRURGICO');
+}
+
+export interface ShiftView {
+  active: boolean;
+  protocolo: Protocolo | null;
+  startedAtEpochMs: number | null;
+  endsAtEpochMs: number | null;
+}
+
+function isShift(value: unknown): value is ShiftView {
+  if (typeof value !== 'object' || value === null) return false;
+  const shift = value as Record<string, unknown>;
+  const epoch = (item: unknown) => item === null || (typeof item === 'number' && Number.isFinite(item));
+  return typeof shift.active === 'boolean' && epoch(shift.startedAtEpochMs) && epoch(shift.endsAtEpochMs)
+    && (shift.protocolo === null || typeof shift.protocolo === 'string');
 }
 
 function messageFor(code: unknown, status: number): string {
+  if (code === 'TURNO_YA_ACTIVO') return 'Ya hay un turno activo en este puesto.';
+  if (code === 'TURNO_INVALIDO') return 'El turno debe durar entre 1 y 16 horas.';
   if (code === 'OPERADOR_SIN_ASIGNACION') return 'Tu cuenta aún no tiene un puesto asignado.';
   if (code === 'CORREO_NO_COINCIDE') return 'El código fue emitido para otro correo verificado.';
   if (code === 'CODIGO_OPERADOR_INVALIDO' || status === 401) return 'Código inválido, revocado o ya utilizado.';

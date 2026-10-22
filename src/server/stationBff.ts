@@ -6,6 +6,8 @@ const CSRF_COOKIE = 'hw_station_csrf';
 const COOKIE_PATH = '/api/station';
 const CSRF_COOKIE_PATH = '/api';
 const MAX_BODY_BYTES = 4_096;
+const MIN_EVIDENCE_BYTES = 1_024;
+const MAX_EVIDENCE_BYTES = 300 * 1024;
 const UPSTREAM_TIMEOUT_MS = 7_000;
 const RATE_WINDOW_MS = 60_000;
 const rateBuckets = new Map<string, { windowStart: number; count: number }>();
@@ -44,10 +46,14 @@ export async function status(request: Request): Promise<Response> {
   let resumeError = false;
   if (typeof upstream.body.activeSessionId === 'string') {
     const knownSessionId = new URL(request.url).searchParams.get('knownSessionId');
-    if (isUuid(knownSessionId) && knownSessionId === upstream.body.activeSessionId) {
+    // The session capability cookie expires with its token; once it is gone the known session
+    // must be resumed again, or a long shift would lose its camera link after the first hour.
+    if (isUuid(knownSessionId) && knownSessionId === upstream.body.activeSessionId
+      && cookieValue(request, SESSION_COOKIE)) {
       return json({ registered: true, stationId: upstream.body.stationId,
         stationName: upstream.body.stationName, activeSession: null,
-        unchangedActiveSession: true, resumeError: false });
+        unchangedActiveSession: true, resumeError: false,
+        photoEvidence: upstream.body.photoEvidence === true });
     }
     try {
       const resume = await callBackend('/api/v1/stations/resume', 'POST', undefined, credential);
@@ -71,6 +77,7 @@ export async function status(request: Request): Promise<Response> {
     activeSession,
     unchangedActiveSession: false,
     resumeError,
+    photoEvidence: upstream.body.photoEvidence === true,
   }, 200, sessionCookie);
 }
 
@@ -201,6 +208,77 @@ export async function operatorStopSession(request: Request): Promise<Response> {
   }
 }
 
+interface SafeShift {
+  active: boolean;
+  protocolo: 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO' | null;
+  startedAtEpochMs: number | null;
+  endsAtEpochMs: number | null;
+}
+
+function safeShift(value: unknown): SafeShift | null {
+  if (!isObject(value) || typeof value.active !== 'boolean') return null;
+  const epoch = (item: unknown) => item === null ? null
+    : typeof item === 'number' && Number.isSafeInteger(item) && item > 0 ? item : undefined;
+  const startedAtEpochMs = epoch(value.startedAtEpochMs);
+  const endsAtEpochMs = epoch(value.endsAtEpochMs);
+  if (startedAtEpochMs === undefined || endsAtEpochMs === undefined) return null;
+  if (value.active && (!isProtocol(value.protocolo) || startedAtEpochMs === null || endsAtEpochMs === null)) return null;
+  return { active: value.active, protocolo: value.active ? value.protocolo as SafeShift['protocolo'] : null,
+    startedAtEpochMs: value.active ? startedAtEpochMs : null, endsAtEpochMs: value.active ? endsAtEpochMs : null };
+}
+
+export async function operatorShiftStatus(request: Request): Promise<Response> {
+  if (isCrossSite(request)) return error(403, 'ORIGIN_INVALID');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'GET', undefined, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const shift = safeShift(result.body);
+    return shift ? json({ ...shift }) : error(502, 'SHIFT_RESPONSE_INVALID');
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorShiftStart(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || !isProtocol(body.protocolo) || typeof body.hours !== 'number'
+    || !Number.isInteger(body.hours) || body.hours < 1 || body.hours > 16) {
+    return error(400, 'SHIFT_REQUEST_INVALID');
+  }
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'POST',
+      { hours: body.hours, protocolo: body.protocolo }, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const shift = safeShift(result.body);
+    return shift && shift.active ? json({ ...shift }) : error(502, 'SHIFT_RESPONSE_INVALID');
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorShiftStop(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/shift', 'DELETE', undefined, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    return json({ stopped: true }, 200, clearCookie(SESSION_COOKIE));
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 export async function operatorTicket(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
@@ -270,9 +348,75 @@ export async function webrtcTicket(request: Request): Promise<Response> {
       || !Number.isFinite(Date.parse(result.body.expiresAt))) {
       return error(502, 'WEBRTC_TICKET_INVALID');
     }
-    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt });
+    // Older Java builds omit iceServers (LAN only); a present but malformed list is rejected.
+    const iceServers = result.body.iceServers === undefined ? [] : sanitizeIceServers(result.body.iceServers);
+    if (iceServers === null) return error(502, 'WEBRTC_TICKET_INVALID');
+    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt, iceServers });
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+/**
+ * Forwards the one retained frame of a reported attempt to Java. The BFF only checks shape and size;
+ * Java decides eligibility and re-encodes the image. Nothing is stored or logged here.
+ */
+export async function evidenceUpload(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const sessionToken = cookieValue(request, SESSION_COOKIE);
+  const credential = cookieValue(request, STATION_COOKIE);
+  if (!sessionToken || !credential) return error(401, 'SESSION_CAPABILITY_EXPIRED');
+  const params = new URL(request.url).searchParams;
+  const sessionId = params.get('sessionId');
+  const attempt = Number(params.get('attempt'));
+  if (!isUuid(sessionId) || !Number.isInteger(attempt) || attempt < 1 || attempt > 100_000) {
+    return error(400, 'SESSION_ID_INVALID');
+  }
+  if ((request.headers.get('content-type') ?? '').toLowerCase().split(';')[0]?.trim() !== 'image/jpeg') {
+    return error(415, 'IMAGE_INVALID');
+  }
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_EVIDENCE_BYTES) return error(413, 'IMAGE_TOO_LARGE');
+  let image: Uint8Array;
+  try {
+    image = new Uint8Array(await request.arrayBuffer());
+  } catch {
+    return error(400, 'IMAGE_INVALID');
+  }
+  if (image.byteLength > MAX_EVIDENCE_BYTES) return error(413, 'IMAGE_TOO_LARGE');
+  if (image.byteLength < MIN_EVIDENCE_BYTES || image[0] !== 0xff || image[1] !== 0xd8 || image[2] !== 0xff) {
+    return error(400, 'IMAGE_INVALID');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const station = await callBackend('/api/v1/stations/me', 'GET', undefined, credential);
+    if (!station.ok || !isObject(station.body) || station.body.activeSessionId !== sessionId) {
+      return error(403, 'STATION_SESSION_MISMATCH');
+    }
+    const response = await fetch(new URL(`/api/v1/stations/evidence/${sessionId}/${attempt}`, backendOrigin()), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'image/jpeg',
+        'X-Station-Credential': credential,
+        'X-Session-Token': sessionToken,
+      },
+      body: image,
+      cache: 'no-store',
+      redirect: 'error',
+      signal: controller.signal,
+    });
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(await readLimitedText(response, 2_048)); } catch { parsed = null; }
+    if (response.ok) return json({ stored: true });
+    return upstreamError(response.status, parsed);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -442,7 +586,8 @@ function upstreamError(statusCode: number, body: unknown): Response {
     'OPERADOR_YA_ASIGNADO', 'PUESTO_NO_DISPONIBLE', 'CUENTA_COGNITO_NO_AUTORIZADA',
     'ID_TOKEN_NO_VALIDO', 'CORREO_NO_VERIFICADO', 'TICKET_WEBSOCKET_NO_DISPONIBLE',
     'STATION_SESSION_MISMATCH', 'ACCESO_NO_AUTORIZADO', 'ASIGNACION_NO_DISPONIBLE',
-    'PUESTO_CON_SESION_ACTIVA',
+    'PUESTO_CON_SESION_ACTIVA', 'TURNO_YA_ACTIVO', 'TURNO_INVALIDO', 'TURNO_NO_DISPONIBLE',
+    'FOTO_DESACTIVADA', 'FOTO_NO_ELEGIBLE', 'FOTO_YA_REGISTRADA', 'FOTO_NO_DISPONIBLE', 'IMAGEN_INVALIDA',
   ]);
   const upstreamCode = isObject(body) && typeof body.error === 'string' ? body.error : null;
   const code = upstreamCode && allowedCodes.has(upstreamCode)
@@ -506,8 +651,8 @@ function isUuid(value: unknown): value is string {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
-function isProtocol(value: unknown): value is 'DOMESTICO' | 'CLINICO_QUIRURGICO' {
-  return value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
+function isProtocol(value: unknown): value is 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO' {
+  return value === 'AGUA_Y_JABON' || value === 'DOMESTICO' || value === 'CLINICO_QUIRURGICO';
 }
 function safeOperatorGrant(value: unknown): JsonObject | null {
   if (!isObject(value) || typeof value.subject !== 'string' || !value.subject
@@ -523,13 +668,34 @@ function safeOperatorGrant(value: unknown): JsonObject | null {
     revokedAtEpochMs: value.revokedAtEpochMs,
   };
 }
+/** Strict allowlist: re-emits only urls/username/credential and only stun:/turn:/turns: URLs. */
+function sanitizeIceServers(value: unknown): JsonObject[] | null {
+  if (!Array.isArray(value) || value.length > 4) return null;
+  const servers: JsonObject[] = [];
+  for (const entry of value) {
+    if (!isObject(entry) || !Array.isArray(entry.urls) || entry.urls.length < 1 || entry.urls.length > 4) return null;
+    const urls: string[] = [];
+    for (const url of entry.urls) {
+      if (typeof url !== 'string' || url.length > 300 || !/^(stun|turn|turns):[^\s@]+$/.test(url)) return null;
+      urls.push(url);
+    }
+    const turn = urls.some((url) => !url.startsWith('stun:'));
+    const username = entry.username ?? null;
+    const credential = entry.credential ?? null;
+    const credentialOk = (item: unknown) => typeof item === 'string' && item.length > 0 && item.length <= 256;
+    if (turn ? !credentialOk(username) || !credentialOk(credential) : username !== null || credential !== null) return null;
+    servers.push(turn ? { urls, username, credential } : { urls });
+  }
+  return servers;
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 interface SafeSession {
   sessionId: string;
-  protocolo: 'DOMESTICO' | 'CLINICO_QUIRURGICO';
+  protocolo: 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO';
   mensaje?: string;
 }
 

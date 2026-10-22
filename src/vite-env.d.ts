@@ -23,5 +23,7 @@ interface Window {
     cognitoClientId?: string
     cognitoRedirectUri?: string
     cloudMode?: boolean
+    /** Opt-in short chime when Java announces a step change or completion. */
+    kioskSound?: boolean
   }
 }

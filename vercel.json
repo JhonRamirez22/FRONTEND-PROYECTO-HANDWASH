@@ -1,10 +1,56 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/api/operator/claim", "destination": "/api/operator?action=claim" },
-    { "source": "/api/operator/me", "destination": "/api/operator?action=me" },
-    { "source": "/api/operator/session", "destination": "/api/operator?action=session" },
-    { "source": "/api/operator/stop", "destination": "/api/operator?action=stop" },
-    { "source": "/api/operator/ticket", "destination": "/api/operator?action=ticket" }
+    {
+      "source": "/api/operator/claim",
+      "destination": "/api/operator?action=claim"
+    },
+    {
+      "source": "/api/operator/me",
+      "destination": "/api/operator?action=me"
+    },
+    {
+      "source": "/api/operator/session",
+      "destination": "/api/operator?action=session"
+    },
+    {
+      "source": "/api/operator/stop",
+      "destination": "/api/operator?action=stop"
+    },
+    {
+      "source": "/api/operator/ticket",
+      "destination": "/api/operator?action=ticket"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://*.cloudfront.net wss://*.cloudfront.net https://cognito-idp.sa-east-1.amazonaws.com https://*.auth.sa-east-1.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://*.auth.sa-east-1.amazoncognito.com; object-src 'none'"
+        }
+      ]
+    }
   ]
 }

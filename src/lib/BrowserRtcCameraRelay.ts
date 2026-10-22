@@ -1,7 +1,8 @@
 import { RuntimeEndpointConfig } from './RuntimeEndpointConfig';
 import { stationApi } from './StationApi';
 
-export type CameraRelayState = 'connecting' | 'waiting-peer' | 'connected' | 'disconnected' | 'failed';
+/** 'reconnecting' is emitted only by RelaySupervisor, between a failure and the next attempt. */
+export type CameraRelayState = 'connecting' | 'waiting-peer' | 'connected' | 'disconnected' | 'failed' | 'reconnecting';
 export interface ProducerTelemetry {
   modelsReady: boolean;
   activeModelsReady: boolean;
@@ -45,7 +46,7 @@ export class BrowserRtcCameraRelay {
   async connect(sessionId: string, stream: MediaStream,
     onState: (state: CameraRelayState) => void, signal?: AbortSignal,
     onTelemetry?: (status: ProducerTelemetry | null) => void): Promise<() => void> {
-    const ticket = await stationApi.webrtcTicket(sessionId);
+    const { ticket, iceServers } = await stationApi.webrtcAccess(sessionId);
     if (signal?.aborted) throw new DOMException('Enlace WebRTC cancelado', 'AbortError');
     const wsBase = new URL(RuntimeEndpointConfig.websocketBaseUrl(), window.location.origin);
     wsBase.protocol = wsBase.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -62,7 +63,7 @@ export class BrowserRtcCameraRelay {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
     };
     const createPeer = () => {
-      const activePeer = new RTCPeerConnection({ iceServers: [] });
+      const activePeer = new RTCPeerConnection({ iceServers });
       peer = activePeer;
       const statusChannel = activePeer.createDataChannel('producer-status');
       statusChannel.onmessage = (event) => {
