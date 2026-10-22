@@ -24,7 +24,20 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+      - name: Dependency audit (fails on findings, tolerates an unavailable audit service)
+        run: |
+          set +e
+          out=$(timeout 180 npm audit --omit=dev --audit-level=high 2>&1); code=$?
+          echo "$out"
+          # A real finding ("found N vulnerabilities") always fails. Only an unavailable audit service (registry
+          # 5xx, network error, timeout) is downgraded to a warning, so an npm outage cannot block unrelated work.
+          if [ "$code" -ne 0 ] && ! echo "$out" | grep -qE "found [1-9][0-9]* "; then
+            if [ "$code" -eq 124 ] || echo "$out" | grep -qiE "audit endpoint returned an error|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|50[234] "; then
+              echo "::warning::npm audit service unavailable; dependency audit skipped for this run"
+              exit 0
+            fi
+          fi
+          exit $code
       - run: npm run lint
       - run: npm test
       - run: npm run build
