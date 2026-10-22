@@ -15,6 +15,18 @@ export class RuntimeEndpointConfig {
     };
   }
 
+  /** Operators sign in through their own Cognito pool (no MFA); empty until that pool is configured. */
+  static operatorCognitoConfig(): { domain: string; clientId: string; redirectUri: string; operatorPool: true } {
+    const runtime = window.__HANDWASH_CONFIG__;
+    return {
+      domain: import.meta.env.VITE_OPERATOR_COGNITO_DOMAIN?.trim() || runtime?.operatorCognitoDomain?.trim() || '',
+      clientId: import.meta.env.VITE_OPERATOR_COGNITO_CLIENT_ID?.trim()
+        || runtime?.operatorCognitoClientId?.trim() || '',
+      redirectUri: this.cognitoConfig().redirectUri,
+      operatorPool: true,
+    };
+  }
+
   static apiBaseUrl(): string {
     const configured = import.meta.env.VITE_API_URL?.trim();
     if (configured) return this.withoutTrailingSlash(configured);

@@ -86,11 +86,17 @@ export async function enroll(request: Request): Promise<Response> {
   if (securityError) return securityError;
   if (!allowRequest(request, 8)) return error(429, 'RATE_LIMITED');
   const body = await readJson(request);
-  if (!body || typeof body.code !== 'string' || body.code.length < 30 || body.code.length > 100) {
+  const activation = body && typeof body.activation === 'string' ? body.activation : null;
+  const secret = activation ?? (body && typeof body.code === 'string' ? body.code : null);
+  if (!secret || secret.length < 30 || secret.length > 100
+    || (activation !== null && !/^[A-Za-z0-9_-]+$/.test(activation))) {
     return error(400, 'ENROLLMENT_CODE_INVALID');
   }
   try {
-    const result = await callBackend('/api/v1/stations/enroll', 'POST', { code: body.code });
+    // "Crear puesto" hands the Mac a one-time activation token; the older enrollment code still works.
+    const result = activation !== null
+      ? await callBackend('/api/v1/stations/activate', 'POST', { token: activation })
+      : await callBackend('/api/v1/stations/enroll', 'POST', { code: secret });
     if (!result.ok) return upstreamError(result.status, result.body);
     if (!isObject(result.body) || !isCredential(result.body.credential)
       || !isUuid(result.body.stationId) || typeof result.body.stationName !== 'string') {

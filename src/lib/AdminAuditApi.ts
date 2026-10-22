@@ -53,6 +53,18 @@ export interface StationEnrollmentCode {
   expiresAtEpochMs: number;
 }
 
+export interface StationProvision {
+  stationId: string;
+  stationName: string;
+  producerClientId: string | null;
+  activationToken: string;
+  activationExpiresAtEpochMs: number;
+  operators: { subject: string; email: string; temporaryPassword: string }[];
+  operatorFailures: { email: string; code: string }[];
+}
+
+export interface OperatorAccountCreated { subject: string; email: string; temporaryPassword: string }
+
 export interface OperatorAccessCode {
   codeId: string;
   stationId: string;
@@ -283,6 +295,25 @@ export class AdminAuditApi {
 
   async issueStationCode(token: string, stationName: string): Promise<StationEnrollmentCode> {
     return this.request('/api/v1/admin/stations/enrollment-codes', token, undefined, 'POST', { stationName });
+  }
+
+  async provisionStation(token: string, request: {
+    stationName: string; producerClientId: string; operatorEmails: string[];
+  }): Promise<StationProvision> {
+    return this.request('/api/v1/admin/stations/provision', token, undefined, 'POST', {
+      stationName: request.stationName,
+      producerClientId: request.producerClientId || null,
+      operatorEmails: request.operatorEmails,
+    });
+  }
+
+  async reissueStationActivation(token: string, stationId: string): Promise<StationEnrollmentCode> {
+    return this.request(`/api/v1/admin/stations/${encodeURIComponent(stationId)}/activation`,
+      token, undefined, 'POST');
+  }
+
+  async createOperatorAccount(token: string, stationId: string, email: string): Promise<OperatorAccountCreated> {
+    return this.request('/api/v1/admin/stations/operator-accounts', token, undefined, 'POST', { stationId, email });
   }
 
   async revokeStation(token: string, stationId: string): Promise<void> {

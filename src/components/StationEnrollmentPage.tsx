@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { stationApi } from '@/lib/StationApi';
 
@@ -14,14 +14,30 @@ export function StationEnrollmentPage({ onEnrolled, onRetry, unavailable = false
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [submitting, setSubmitting] = useState(false);
+  const linkHandled = useRef(false);
+
+  // "Crear puesto" gives ADMIN a link like #/activate/<token>; opening it on the Mac activates the station.
+  useEffect(() => {
+    if (linkHandled.current) return;
+    const match = /^#\/activate\/([A-Za-z0-9_-]{30,100})$/.exec(window.location.hash);
+    if (!match?.[1]) return;
+    linkHandled.current = true;
+    window.history.replaceState(null, '', `${window.location.pathname}#/`);
+    void submit(match[1]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await submit(code);
+  }
+
+  async function submit(secret: string) {
     if (submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const station = await stationApi.enroll(code);
+      const station = await stationApi.enroll(secret);
       setCode('');
       onEnrolled(station.stationName);
     } catch (cause) {
@@ -47,7 +63,7 @@ export function StationEnrollmentPage({ onEnrolled, onRetry, unavailable = false
       <section className="access-panel" aria-labelledby="station-enrollment-title">
         <div className="access-copy">
           <h1 id="station-enrollment-title">Registrar este puesto</h1>
-          <p>Un administrador debe entregar un código de inscripción de un solo uso. Después, este equipo podrá iniciar sesiones sin cuenta personal.</p>
+          <p>Abre el enlace de activación que ADMIN generó al crear el puesto, o pega aquí su token. Después, este equipo queda enlazado al puesto.</p>
         </div>
         {error && !unavailable && <p className="form-error" role="alert">{error}</p>}
         {unavailable ? (
@@ -74,7 +90,7 @@ export function StationEnrollmentPage({ onEnrolled, onRetry, unavailable = false
               required
               aria-describedby="station-enrollment-help"
             />
-            <p id="station-enrollment-help">El código vence en 10 minutos y solo puede usarse una vez.</p>
+            <p id="station-enrollment-help">El token de activación vence en 24 horas y el código de inscripción en 10 minutos; ambos se usan una sola vez.</p>
             <button className="button-primary access-submit" type="submit" disabled={submitting || code.trim().length < 30}>
               {submitting ? <><LoaderCircle className="animate-spin" size={17} /> Registrando puesto…</>
                 : <>Registrar estación <ArrowRight size={17} /> </>}

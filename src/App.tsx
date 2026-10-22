@@ -14,7 +14,7 @@ import { SessionSummary } from './components/SessionSummary';
 import { StepStepper } from './components/StepStepper';
 import { DeploymentStatusService } from './lib/DeploymentStatusService';
 import { BrowserRtcCameraRelay, type CameraRelayState, type ProducerTelemetry } from './lib/BrowserRtcCameraRelay';
-import { cognitoAdminAuth } from './lib/adminAuth';
+import { cognitoAdminAuth, operatorAuth } from './lib/adminAuth';
 import { CognitoAdminAuthService, type HumanRole } from './lib/CognitoAdminAuthService';
 import { ContinuityBrowserCameraService, stopTracks } from './lib/ContinuityBrowserCameraService';
 import { RuntimeEndpointConfig } from './lib/RuntimeEndpointConfig';
@@ -63,7 +63,7 @@ function App() {
         }
         window.history.replaceState(null, '', `${window.location.pathname}${pendingRoute}`);
         setRoute(pendingRoute === '#/admin' ? 'admin' : 'operator');
-        void cognitoAdminAuth.continueSignInAfterLogout()
+        void (pendingRoute === '#/operator' ? operatorAuth : cognitoAdminAuth).continueSignInAfterLogout()
           .catch((cause: unknown) => {
             cognitoAdminAuth.clearPendingSignIn();
             setAuthError(cause instanceof Error ? cause.message : 'No se pudo iniciar sesión.');
@@ -89,7 +89,8 @@ function App() {
       setAuthReady(true);
       return;
     }
-    void cognitoAdminAuth.completeRedirect()
+    const signIn = requestedRoute === '#/operator' ? operatorAuth : cognitoAdminAuth;
+    void signIn.completeRedirect()
       .then(() => {
         if (requestedRoute === '#/admin' && !cognitoAdminAuth.getHumanRoles().includes('ADMIN')) {
           cognitoAdminAuth.clear();
@@ -98,7 +99,7 @@ function App() {
         setRoute(requestedRoute === '#/admin' ? 'admin' : 'operator');
       })
       .catch((cause: unknown) => {
-        cognitoAdminAuth.clear();
+        signIn.clear();
         setAuthError(cause instanceof Error ? cause.message : 'No se pudo completar el inicio de sesión.');
         setRoute(requestedRoute === '#/admin' ? 'admin' : 'operator');
       })
@@ -125,8 +126,8 @@ function App() {
   }
   if (cloudMode && route === 'operator') {
     return <OperatorConsole authError={authError} onSignedOut={() => {
-      cognitoAdminAuth.signOut();
-      cognitoAdminAuth.clear();
+      operatorAuth.signOut();
+      operatorAuth.clear();
       setAuthRevision((revision) => revision + 1);
     }} />;
   }

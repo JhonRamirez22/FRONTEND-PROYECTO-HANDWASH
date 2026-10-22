@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Clipboard, LoaderCircle, Plus, RefreshCw, ShieldX, Unlink } from 'lucide-react';
-import { AdminAuditApi, type StationAdminRecord, type StationEnrollmentCode } from '@/lib/AdminAuditApi';
+import { AdminAuditApi, type StationAdminRecord, type StationProvision } from '@/lib/AdminAuditApi';
 import { cognitoAdminAuth } from '@/lib/adminAuth';
 
 const api = new AdminAuditApi();
@@ -11,15 +11,16 @@ interface AdminStationRegistryProps {
 
 export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
   const [stations, setStations] = useState<StationAdminRecord[]>([]);
-  const [stationName, setStationName] = useState('');
-  const [issued, setIssued] = useState<StationEnrollmentCode | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [binding, setBinding] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [wizardName, setWizardName] = useState('');
+  const [wizardProducer, setWizardProducer] = useState('');
+  const [wizardEmails, setWizardEmails] = useState('');
+  const [provisioned, setProvisioned] = useState<StationProvision | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const token = cognitoAdminAuth.getAccessToken();
@@ -49,20 +50,26 @@ export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
     return () => controller.abort();
   }, [load]);
 
-  async function issueCode(event: FormEvent<HTMLFormElement>) {
+  async function provision(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = cognitoAdminAuth.getAccessToken();
     if (!token || submitting) return;
+    const operatorEmails = wizardEmails.split(/[\s,;]+/).map((email) => email.trim()).filter(Boolean);
+    const producerClientId = wizardProducer.trim();
+    if (producerClientId && !/^[A-Za-z0-9_-]{1,128}$/.test(producerClientId)) {
+      setError('El App client ID del productor RTX solo admite letras, números, guion y guion bajo; nunca el client secret.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setNotice(null);
-    setIssued(null);
-    setCopied(false);
+    setProvisioned(null);
     try {
-      const result = await api.issueStationCode(token, stationName.trim());
-      setIssued(result);
-      setStationName('');
-      setNotice('Código creado. Se muestra una sola vez y vence en 10 minutos.');
+      const result = await api.provisionStation(token, { stationName: wizardName.trim(), producerClientId, operatorEmails });
+      setProvisioned(result);
+      setWizardName('');
+      setWizardProducer('');
+      setWizardEmails('');
       await load();
     } catch (cause) {
       const message = messageOf(cause);
@@ -73,13 +80,43 @@ export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
     }
   }
 
-  async function copyCode() {
-    if (!issued) return;
+  async function reissue(station: StationAdminRecord) {
+    const token = cognitoAdminAuth.getAccessToken();
+    if (!token || submitting) return;
+    setError(null);
+    setNotice(null);
     try {
-      await navigator.clipboard.writeText(issued.code);
-      setCopied(true);
+      const result = await api.reissueStationActivation(token, station.stationId);
+      setProvisioned({ stationId: station.stationId, stationName: station.stationName,
+        producerClientId: station.producerClientId, activationToken: result.code,
+        activationExpiresAtEpochMs: result.expiresAtEpochMs, operators: [], operatorFailures: [] });
     } catch {
-      setError('No se pudo copiar automáticamente. Selecciona y copia el código manualmente.');
+      setError('No se pudo generar un enlace nuevo. Si el Mac ya activó el puesto, el enlace anterior ya cumplió su función.');
+    }
+  }
+
+  async function addOperator(station: StationAdminRecord) {
+    const email = window.prompt(`Correo del nuevo operador para “${station.stationName}”`)?.trim();
+    const token = cognitoAdminAuth.getAccessToken();
+    if (!email || !token) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const account = await api.createOperatorAccount(token, station.stationId, email);
+      setProvisioned({ stationId: station.stationId, stationName: station.stationName,
+        producerClientId: station.producerClientId, activationToken: '', activationExpiresAtEpochMs: 0,
+        operators: [account], operatorFailures: [] });
+    } catch {
+      setError('No se pudo crear el operador: revisa el correo, que no exista ya, y que el pool de operadores esté configurado.');
+    }
+  }
+
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice('Copiado al portapapeles.');
+    } catch {
+      setError('No se pudo copiar automáticamente. Selecciona y copia manualmente.');
     }
   }
 
@@ -137,25 +174,51 @@ export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
         </button>
       </div>
 
-      <form className="station-code-form" onSubmit={(event) => void issueCode(event)}>
+      <form className="station-code-form" onSubmit={(event) => void provision(event)}>
         <div>
           <label htmlFor="new-station-name">Nombre del puesto</label>
-          <input id="new-station-name" value={stationName} maxLength={80} required
-            onChange={(event) => setStationName(event.target.value)} placeholder="Ej. Lavamanos 1" />
+          <input id="new-station-name" value={wizardName} maxLength={80} required
+            onChange={(event) => setWizardName(event.target.value)} placeholder="Ej. Lavamanos 1" />
         </div>
-        <button className="button-primary" type="submit" disabled={submitting || !stationName.trim()}>
+        <div>
+          <label htmlFor="new-station-producer">App client ID del productor RTX (opcional)</label>
+          <input id="new-station-producer" value={wizardProducer} maxLength={128}
+            onChange={(event) => setWizardProducer(event.target.value)} placeholder="Cognito App client ID" />
+        </div>
+        <div>
+          <label htmlFor="new-station-operators">Correos de operadores (uno por línea)</label>
+          <textarea id="new-station-operators" value={wizardEmails} rows={3}
+            onChange={(event) => setWizardEmails(event.target.value)} placeholder="operador@universidad.edu" />
+        </div>
+        <button className="button-primary" type="submit" disabled={submitting || !wizardName.trim()}>
           {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Generar código de inscripción
+          Crear puesto
         </button>
       </form>
 
-      {issued && <div className="station-issued-code" role="status" aria-live="polite">
-        <div><strong>Código de un solo uso</strong><span>Vence {new Date(issued.expiresAtEpochMs).toLocaleString()}</span></div>
-        <code>{issued.code}</code>
-        <button className="button-quiet" type="button" onClick={() => void copyCode()}>
-          <Clipboard className="h-4 w-4" />{copied ? 'Copiado' : 'Copiar código'}
-        </button>
+      {provisioned && <div className="station-issued-code" role="status" aria-live="polite">
+        <div><strong>Puesto “{provisioned.stationName}” listo — se muestra una sola vez</strong>
+          {provisioned.activationToken && <span>El enlace vence {new Date(provisioned.activationExpiresAtEpochMs).toLocaleString()}</span>}</div>
+        {provisioned.activationToken && <>
+          <p>1. En el Mac del puesto abre este enlace:</p>
+          <code>{`${window.location.origin}/#/activate/${provisioned.activationToken}`}</code>
+          <button className="button-quiet" type="button"
+            onClick={() => void copyText(`${window.location.origin}/#/activate/${provisioned.activationToken}`)}>
+            <Clipboard className="h-4 w-4" />Copiar enlace
+          </button>
+        </>}
+        {provisioned.operators.length > 0 && <>
+          <p>2. Entrega a cada operador su correo y contraseña temporal (la cambia al primer acceso):</p>
+          <ul>{provisioned.operators.map((operator) => <li key={operator.subject}>
+            <strong>{operator.email}</strong> · <code>{operator.temporaryPassword}</code>{' '}
+            <button className="button-quiet" type="button" onClick={() => void copyText(operator.temporaryPassword)}>Copiar</button>
+          </li>)}</ul>
+        </>}
+        {provisioned.operatorFailures.length > 0 && <ul role="alert">{provisioned.operatorFailures.map((failure) =>
+          <li key={failure.email}>{failure.email}: {failure.code === 'OPERADOR_YA_EXISTE' ? 'ya existe una cuenta con ese correo'
+            : failure.code === 'CORREO_INVALIDO' ? 'correo inválido' : 'no se pudo crear; reintenta con “Agregar operador”'}</li>)}</ul>}
       </div>}
+
       {notice && <p className="station-admin-notice" role="status">{notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
@@ -188,6 +251,8 @@ export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
                   </div>}
                 </td>
                 <td className="text-right">
+                  {!revoked && <button className="button-quiet" type="button" onClick={() => void reissue(station)}>Enlace de activación</button>}
+                  {!revoked && <button className="button-quiet" type="button" onClick={() => void addOperator(station)}>Agregar operador</button>}
                   {!revoked && <button className="button-quiet station-revoke-button" type="button"
                     disabled={revoking !== null} onClick={() => void revoke(station)}>
                     {revoking === station.stationId ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}

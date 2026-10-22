@@ -63,7 +63,8 @@ export class StationApi {
     const response = await fetch('/api/station/enroll', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-      body: JSON.stringify({ code: code.trim() }),
+      // Activation tokens (43 chars) come from "Crear puesto"; legacy enrollment codes are shorter.
+      body: JSON.stringify(code.trim().length >= 40 ? { activation: code.trim() } : { code: code.trim() }),
     });
     const payload = await this.readPayload(response);
     if (!response.ok || typeof payload.stationId !== 'string' || typeof payload.stationName !== 'string') {
