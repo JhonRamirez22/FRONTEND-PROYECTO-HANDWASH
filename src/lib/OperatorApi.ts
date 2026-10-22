@@ -181,17 +181,33 @@ function isShift(value: unknown): value is ShiftView {
     && (shift.protocolo === null || typeof shift.protocolo === 'string');
 }
 
+/**
+ * Spanish message for an error from the operator API. A plain HTTP 401 is NOT "invalid code": Spring rejects an
+ * unusable Cognito token the same way, so each known server code gets its own explanation and the technical code
+ * is appended in brackets, which lets support tell the real cause from one line.
+ */
 function messageFor(code: unknown, status: number): string {
+  const tag = typeof code === 'string' && /^[A-Z0-9_]{3,60}$/.test(code) ? ` [${code}]` : status ? ` [HTTP ${status}]` : '';
   if (code === 'TURNO_YA_ACTIVO') return 'Ya hay un turno activo en este puesto.';
   if (code === 'TURNO_INVALIDO') return 'El turno debe durar entre 1 y 16 horas.';
   if (code === 'OPERADOR_SIN_ASIGNACION') return 'Tu cuenta aún no tiene un puesto asignado.';
-  if (code === 'CORREO_NO_COINCIDE') return 'El código fue emitido para otro correo verificado.';
-  if (code === 'CODIGO_OPERADOR_INVALIDO' || status === 401) return 'Código inválido, revocado o ya utilizado.';
-  if (status === 403) return 'La cuenta no está autorizada para este puesto.';
-  if (status === 409) return 'La asignación ya existe o el puesto tiene una sesión activa.';
+  if (code === 'CORREO_NO_COINCIDE') return `El código fue emitido para otro correo verificado. Emite uno para el correo con el que iniciaste sesión.${tag}`;
+  if (code === 'CORREO_NO_VERIFICADO') return `Tu cuenta no tiene el correo verificado en Cognito. Pide a ADMIN que lo marque como verificado.${tag}`;
+  if (code === 'ID_TOKEN_NO_VALIDO' || code === 'ID_TOKEN_INVALID') {
+    return `El token de identidad no es válido o venció. Cierra sesión, vuelve a entrar con MFA y repite.${tag}`;
+  }
+  if (code === 'CODIGO_OPERADOR_INVALIDO') {
+    return `El servidor no reconoce ese código: está mal copiado, ya fue canjeado, fue revocado o venció. Emite uno nuevo en ADMIN y pégalo completo.${tag}`;
+  }
+  if (code === 'OPERADOR_YA_ASIGNADO') return `Esta cuenta ya tiene un puesto asignado. Recarga la página: debe aparecer "Puesto asignado".${tag}`;
+  if (code === 'PUESTO_NO_DISPONIBLE') return `El puesto del código fue revocado o no existe. Emite el código para otro puesto.${tag}`;
+  if (code === 'CUENTA_COGNITO_NO_AUTORIZADA') return `Esta cuenta no puede operar puestos.${tag}`;
+  if (status === 401) return `El servidor no aceptó tu sesión de Cognito. Cierra sesión y vuelve a entrar con MFA.${tag}`;
+  if (status === 403) return `La cuenta no está autorizada para este puesto.${tag}`;
+  if (status === 409) return `La asignación ya existe o el puesto tiene una sesión activa.${tag}`;
   if (status === 429) return 'Se alcanzó el límite de intentos. Espera y vuelve a intentar.';
-  if (status >= 500) return 'Java no está disponible. La sesión no se confirmó.';
-  return 'No se pudo completar la operación. Revisa la solicitud.';
+  if (status >= 500) return `Java no está disponible. La sesión no se confirmó.${tag}`;
+  return `No se pudo completar la operación. Revisa la solicitud.${tag}`;
 }
 
 export const operatorApi = new OperatorApi();
