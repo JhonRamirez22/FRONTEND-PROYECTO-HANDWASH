@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
 import { operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
-import { KEY_SESSION, OperatorKeySession } from '@/lib/OperatorKeySession';
+import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
 import { ContinuityBrowserCameraService, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
 import { useStationCamera } from '@/hooks/useStationCamera';
@@ -26,6 +26,8 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [keyMode, setKeyMode] = useState(keySession.isActive());
   const [apiKey, setApiKey] = useState('');
   const [linkMac, setLinkMac] = useState(true);
+  const [replaceMac, setReplaceMac] = useState(false);
+  const [macNotice, setMacNotice] = useState<string | null>(null);
   const currentToken = useCallback(() => operatorAuth.getAccessToken() ?? (keyMode ? KEY_SESSION : null), [keyMode]);
   const token = currentToken();
   const idToken = operatorAuth.getIdToken();
@@ -117,14 +119,27 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     return () => { video.srcObject = null; };
   }, [stream]);
 
+  useEffect(() => {
+    if (keyMode) return;
+    // Entering from a laptop must not take the station over: tick "this is the Mac" only if this browser has none.
+    let active = true;
+    void stationApi.status(null).then((local) => { if (active) setLinkMac(defaultLinkMac(Boolean(local?.registered))); })
+      .catch(() => { /* keep the default; the box stays editable */ });
+    return () => { active = false; };
+  }, [keyMode]);
+
   async function signInWithKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      await keySession.login(apiKey, linkMac);
+      const profile = await keySession.login(apiKey, linkMac, replaceMac);
       setApiKey('');
+      setReplaceMac(false);
+      setMacNotice(profile.macAlreadyLinked
+        ? 'El puesto ya tiene otro Mac enlazado, así que este equipo entró solo como consola. Si este es el Mac nuevo, vuelve a entrar con “Reemplazar el Mac anterior”.'
+        : null);
       setChecking(true);
       setKeyMode(true);
     } catch (cause) { setError(messageOf(cause)); }
@@ -282,6 +297,8 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
             </button></div>
           <label className="operator-footnote"><input type="checkbox" checked={linkMac} onChange={(event) => setLinkMac(event.target.checked)} />{' '}
             Este equipo es el Mac del puesto (enlazarlo y usar su cámara)</label>
+          {linkMac && <label className="operator-footnote"><input type="checkbox" checked={replaceMac} onChange={(event) => setReplaceMac(event.target.checked)} />{' '}
+            Reemplazar el Mac anterior (déjalo desmarcado salvo que cambies de equipo)</label>}
         </form>
         <details className="operator-footnote">
           <summary>Entrar con una cuenta (alternativa)</summary>
@@ -312,6 +329,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       </div>
 
       {error && <p className="operator-error" role="alert">{error}</p>}
+      {macNotice && <p className="operator-footnote" role="status">{macNotice}</p>}
 
       {!status && (operatorHasOwnPool || keyMode) && !checking && <section className="operator-panel" role="status">
         <div className="operator-panel-heading"><div><p className="operator-eyebrow">Cuenta sin puesto</p><h2>Aún no tienes un puesto asignado</h2></div><ShieldCheck /></div>
