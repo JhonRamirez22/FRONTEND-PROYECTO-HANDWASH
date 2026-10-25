@@ -565,6 +565,18 @@ describe('operator API key session through the BFF', () => {
     expect(response.headers.get('set-cookie')).toContain('hw_operator_key_session=;');
   });
 
+  it('keeps a separate rate bucket per route so one busy route cannot starve another for the same client', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ error: 'KEY_NO_VALIDA' }), { status: 401 }));
+    const busy = { ...guarded, 'X-Forwarded-For': '203.0.113.99' };
+    for (let attempt = 0; attempt < 11; attempt++) {
+      await enroll(request('/api/station/enroll', 'POST', { code: 'x'.repeat(40) }, busy));
+    }
+
+    const response = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST', { key }, busy));
+
+    expect(response.status).toBe(401); // the wrong key, not RATE_LIMITED
+  });
+
   it('reports an already linked Mac, sets no station cookie and passes forceLink only when asked', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A',

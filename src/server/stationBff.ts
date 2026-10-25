@@ -592,7 +592,10 @@ function backendOrigin(): string {
 function allowRequest(request: Request, limit: number): boolean {
   const now = Date.now();
   const client = (request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown').slice(0, 64);
-  const key = `${request.method}:${client}`;
+  // One bucket per route and client: a busy route (tickets, shifts) must not exhaust another route's allowance.
+  const url = new URL(request.url);
+  const route = `${url.pathname}${url.searchParams.get('action') ? `?${url.searchParams.get('action')}` : ''}`.slice(0, 80);
+  const key = `${route}:${request.method}:${client}`;
   let bucket = rateBuckets.get(key);
   if (!bucket || now - bucket.windowStart >= RATE_WINDOW_MS) {
     if (!bucket && rateBuckets.size >= 2_048) {

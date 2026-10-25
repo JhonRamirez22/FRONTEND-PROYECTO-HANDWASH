@@ -46,6 +46,8 @@ export interface StationAdminRecord {
   lastStartedAtEpochMs: number | null;
   activeSessionId: string | null;
   producerClientId: string | null;
+  /** null while an ADMIN-created station still waits for its Mac to open the activation link. */
+  activatedAtEpochMs: number | null;
 }
 
 export interface StationEnrollmentCode {
