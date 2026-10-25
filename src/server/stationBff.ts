@@ -160,9 +160,11 @@ export async function operatorKeyLogin(request: Request): Promise<Response> {
     return error(400, 'KEY_FORMAT_INVALID');
   }
   const linkStation = body.linkStation === true;
+  // Replacing a Mac that is already linked must be asked for explicitly; it silently cuts the old Mac off.
+  const forceLink = linkStation && body.forceLink === true;
   try {
     const result = await callBackend('/api/v1/operator/key-login', 'POST',
-      { key: body.key.trim(), linkStation }, undefined, { 'X-Forwarded-For': clientAddress(request) });
+      { key: body.key.trim(), linkStation, forceLink }, undefined, { 'X-Forwarded-For': clientAddress(request) });
     if (!result.ok) return upstreamError(result.status, result.body);
     if (!isObject(result.body) || typeof result.body.sessionToken !== 'string'
       || !KEY_SESSION_PATTERN.test(result.body.sessionToken) || !isUuid(result.body.stationId)
@@ -178,7 +180,8 @@ export async function operatorKeyLogin(request: Request): Promise<Response> {
     }
     return json({ stationId: result.body.stationId, stationName: result.body.stationName,
       label: result.body.label, expiresAtEpochMs: result.body.expiresAtEpochMs,
-      stationLinked: linkStation && isCredential(result.body.stationCredential) }, 200, cookies);
+      stationLinked: linkStation && isCredential(result.body.stationCredential),
+      macAlreadyLinked: result.body.macAlreadyLinked === true }, 200, cookies);
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
   }

@@ -526,7 +526,7 @@ describe('operator API key session through the BFF', () => {
     expect(cookies).toContain(`hw_operator_key_session=${sessionToken}`);
     expect(cookies).toContain('hw_station_credential=');
     expect(cookies).toMatch(/HttpOnly/);
-    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ key, linkStation: true });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ key, linkStation: true, forceLink: false });
   });
 
   it('rejects malformed keys and missing CSRF without calling Java', async () => {
@@ -575,5 +575,26 @@ describe('operator API key session through the BFF', () => {
     const response = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST', { key }, busy));
 
     expect(response.status).toBe(401); // the wrong key, not RATE_LIMITED
+  });
+
+  it('reports an already linked Mac, sets no station cookie and passes forceLink only when asked', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A',
+      label: 'María', macAlreadyLinked: true,
+    }), { status: 200 }));
+    const response = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST',
+      { key, linkStation: true, forceLink: false }, guarded));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(payload).toMatchObject({ macAlreadyLinked: true, stationLinked: false });
+    expect(response.headers.get('set-cookie')).not.toContain('hw_station_credential');
+
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A',
+      label: 'María', stationCredential,
+    }), { status: 200 }));
+    await operatorKeyLogin(request('/api/operator?action=key-login', 'POST',
+      { key, linkStation: true, forceLink: true }, guarded));
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))).toEqual({ key, linkStation: true, forceLink: true });
   });
 });
