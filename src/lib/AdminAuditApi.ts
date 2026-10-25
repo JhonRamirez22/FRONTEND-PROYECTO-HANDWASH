@@ -65,6 +65,22 @@ export interface StationProvision {
 
 export interface OperatorAccountCreated { subject: string; email: string; temporaryPassword: string }
 
+export interface ApiKeyRecord {
+  keyId: string;
+  stationId: string;
+  stationName: string;
+  label: string;
+  scopes: ('CONSOLE' | 'PRODUCER')[];
+  createdBy: string;
+  createdAtEpochMs: number;
+  lastUsedAtEpochMs: number | null;
+  lastUsedIp: string | null;
+  revokedAtEpochMs: number | null;
+}
+
+/** The only response that carries a key; it is shown once and never retrievable again. */
+export interface ApiKeyCreated { keyId: string; key: string; stationId: string; label: string; scopes: string[] }
+
 export interface OperatorAccessCode {
   codeId: string;
   stationId: string;
@@ -314,6 +330,18 @@ export class AdminAuditApi {
 
   async createOperatorAccount(token: string, stationId: string, email: string): Promise<OperatorAccountCreated> {
     return this.request('/api/v1/admin/stations/operator-accounts', token, undefined, 'POST', { stationId, email });
+  }
+
+  async apiKeys(token: string): Promise<ApiKeyRecord[]> {
+    return this.request('/api/v1/admin/api-keys', token);
+  }
+
+  async createApiKey(token: string, request: { stationId: string; label: string; scopes: ('CONSOLE' | 'PRODUCER')[] }): Promise<ApiKeyCreated> {
+    return this.request('/api/v1/admin/api-keys', token, undefined, 'POST', request);
+  }
+
+  async revokeApiKey(token: string, keyId: string): Promise<void> {
+    await this.request(`/api/v1/admin/api-keys/${encodeURIComponent(keyId)}`, token, undefined, 'DELETE');
   }
 
   async revokeStation(token: string, stationId: string): Promise<void> {

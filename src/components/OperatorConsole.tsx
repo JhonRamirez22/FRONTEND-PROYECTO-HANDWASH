@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
 import { operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
-import { OperatorApi, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
+import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
+import { KEY_SESSION, OperatorKeySession } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
 import { ContinuityBrowserCameraService, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
 import { useStationCamera } from '@/hooks/useStationCamera';
@@ -14,6 +15,7 @@ import type { Protocolo } from '@/types';
 
 const operatorApi = new OperatorApi();
 const stationApi = new StationApi();
+const keySession = new OperatorKeySession();
 
 interface OperatorConsoleProps {
   authError?: string | null;
@@ -21,7 +23,11 @@ interface OperatorConsoleProps {
 }
 
 export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps) {
-  const token = operatorAuth.getAccessToken();
+  const [keyMode, setKeyMode] = useState(keySession.isActive());
+  const [apiKey, setApiKey] = useState('');
+  const [linkMac, setLinkMac] = useState(true);
+  const currentToken = useCallback(() => operatorAuth.getAccessToken() ?? (keyMode ? KEY_SESSION : null), [keyMode]);
+  const token = currentToken();
   const idToken = operatorAuth.getIdToken();
   const [status, setStatus] = useState<OperatorStatus | null>(null);
   const [station, setStation] = useState<PublicStationStatus | null>(null);
@@ -50,21 +56,21 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const relayedSession = status && station?.stationId === status.grant.stationId && sessionActive ? activeSessionId : null;
   const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream);
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
-    const currentToken = operatorAuth.getAccessToken();
-    if (!currentToken) throw new Error('La sesión de operador expiró.');
-    return operatorApi.websocketTicket(currentToken, sessionId);
+    const activeToken = currentToken();
+    if (!activeToken) throw new Error('La sesión de operador expiró.');
+    return operatorApi.websocketTicket(activeToken, sessionId);
   });
 
   const refresh = useCallback(async () => {
-    const currentToken = operatorAuth.getAccessToken();
-    if (!currentToken) {
+    const activeToken = currentToken();
+    if (!activeToken) {
       setChecking(false);
       return;
     }
     try {
       const [operatorStatus, localStatus, currentShift] = await Promise.all([
-        operatorApi.status(currentToken), stationApi.status(useSessionStore.getState().sessionId),
-        operatorApi.shiftStatus(currentToken).catch(() => null),
+        operatorApi.status(activeToken), stationApi.status(useSessionStore.getState().sessionId),
+        operatorApi.shiftStatus(activeToken).catch(() => null),
       ]);
       setStatus(operatorStatus);
       setShift(currentShift);
@@ -80,11 +86,19 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       }
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo consultar el puesto.');
+      if (cause instanceof SessionExpiredError && keyMode) {
+        // ADMIN revoked the key or the 12-hour session ended: back to the key screen.
+        keySession.clear();
+        setKeyMode(false);
+        setStatus(null);
+        setError('Tu API key fue revocada o la sesión venció. Escribe una key vigente.');
+      } else {
+        setError(cause instanceof Error ? cause.message : 'No se pudo consultar el puesto.');
+      }
     } finally {
       setChecking(false);
     }
-  }, [connect, disconnect]);
+  }, [connect, disconnect, currentToken, keyMode]);
 
   useEffect(() => {
     if (!token) return;
@@ -102,6 +116,32 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     if (stream) void video.play().catch(() => setCameraError('El navegador no pudo mostrar la vista previa.'));
     return () => { video.srcObject = null; };
   }, [stream]);
+
+  async function signInWithKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await keySession.login(apiKey, linkMac);
+      setApiKey('');
+      setChecking(true);
+      setKeyMode(true);
+    } catch (cause) { setError(messageOf(cause)); }
+    finally { setBusy(false); }
+  }
+
+  async function signOut() {
+    if (keyMode) {
+      disconnect();
+      await keySession.logout();
+      setKeyMode(false);
+      setStatus(null);
+      setStream(null);
+      return;
+    }
+    onSignedOut();
+  }
 
   async function signIn() {
     setError(null);
@@ -231,15 +271,24 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
         <Brand />
         <p className="operator-eyebrow">Acceso de operación</p>
         <h1 id="operator-access-title">Control del puesto</h1>
-        <p>{operatorHasOwnPool
-          ? 'Inicia sesión con la cuenta que te creó ADMIN. Java solo habilita los controles de tu puesto asignado.'
-          : 'Inicia sesión con tu cuenta verificada. Java solo habilita los controles después de validar una asignación activa.'}</p>
+        <p>Escribe la API key que te dio ADMIN. Con ella se abre la consola de tu puesto y se conecta el PC con YOLO.</p>
         {error && <p className="operator-error" role="alert">{error}</p>}
-        <button className="operator-button operator-button--primary" type="button" onClick={() => void signIn()}>Iniciar sesión</button>
-        {!operatorHasOwnPool && <button className="operator-button operator-button--secondary" type="button" onClick={() => void signUp()}>Crear cuenta de operador</button>}
-        <p className="operator-footnote"><ShieldCheck size={15} /> {operatorHasOwnPool
-          ? 'La cuenta la crea ADMIN junto con el puesto; en el primer acceso cambias la contraseña temporal.'
-          : 'Cognito verifica el correo y exige MFA TOTP. Una cuenta nueva no obtiene acceso al puesto sin código ADMIN.'}</p>
+        <form className="operator-inline-form" onSubmit={(event) => void signInWithKey(event)}>
+          <label htmlFor="operator-api-key">API key</label>
+          <div><input id="operator-api-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)}
+            autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={40} maxLength={80} required />
+            <button className="operator-button operator-button--primary" type="submit" disabled={busy || apiKey.trim().length < 40}>
+              {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Check size={16} />} Entrar
+            </button></div>
+          <label className="operator-footnote"><input type="checkbox" checked={linkMac} onChange={(event) => setLinkMac(event.target.checked)} />{' '}
+            Este equipo es el Mac del puesto (enlazarlo y usar su cámara)</label>
+        </form>
+        <details className="operator-footnote">
+          <summary>Entrar con una cuenta (alternativa)</summary>
+          <button className="operator-button operator-button--secondary" type="button" onClick={() => void signIn()}>Iniciar sesión con cuenta</button>
+          {!operatorHasOwnPool && <button className="operator-button operator-button--secondary" type="button" onClick={() => void signUp()}>Crear cuenta de operador</button>}
+        </details>
+        <p className="operator-footnote"><ShieldCheck size={15} /> La key no se guarda en el navegador: se cambia por una sesión protegida y ADMIN puede revocarla en cualquier momento.</p>
       </section>
     </main>;
   }
@@ -254,7 +303,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
           Ver pantalla del puesto
         </a>
       )}
-      <button className="operator-button operator-button--quiet" type="button" onClick={onSignedOut}><LogOut size={16} /> Salir</button>
+      <button className="operator-button operator-button--quiet" type="button" onClick={() => void signOut()}><LogOut size={16} /> Salir</button>
     </div></header>
     <div className="operator-content">
       <div className="operator-heading"><div><p className="operator-eyebrow">Consola privada</p><h1>Operación del puesto</h1>
@@ -264,12 +313,12 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
       {error && <p className="operator-error" role="alert">{error}</p>}
 
-      {!status && operatorHasOwnPool && !checking && <section className="operator-panel" role="status">
+      {!status && (operatorHasOwnPool || keyMode) && !checking && <section className="operator-panel" role="status">
         <div className="operator-panel-heading"><div><p className="operator-eyebrow">Cuenta sin puesto</p><h2>Aún no tienes un puesto asignado</h2></div><ShieldCheck /></div>
         <p>Pide a ADMIN que cree tu cuenta dentro de un puesto. Si ya la creó, es posible que haya sido deshabilitada.</p>
       </section>}
 
-      {!status && !operatorHasOwnPool && <section className="operator-panel" aria-labelledby="claim-title">
+      {!status && !operatorHasOwnPool && !keyMode && <section className="operator-panel" aria-labelledby="claim-title">
         <div className="operator-panel-heading"><div><p className="operator-eyebrow">Vinculación personal</p><h2 id="claim-title">Canjear acceso de operador</h2></div><ShieldCheck /></div>
         <p>ADMIN emite un código de un solo uso asociado a tu correo verificado y a un único puesto. El código no caduca, pero deja de servir al usarse o revocarse.</p>
         <form className="operator-inline-form" onSubmit={(event) => void claimAccess(event)}>

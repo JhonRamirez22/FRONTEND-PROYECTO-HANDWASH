@@ -7,6 +7,7 @@ import {
 import { AdminAuditApi, type EncounterAuditRecord, type FailedAttemptAuditRecord, type SessionAuditEvent } from '../lib/AdminAuditApi';
 import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
+import { AdminApiKeysPanel } from './AdminApiKeysPanel';
 import { AdminWashReports } from './AdminWashReports';
 import { AdminAuditChainPanel } from './AdminAuditChainPanel';
 import { AdminChangeControlPanel } from './AdminChangeControlPanel';
@@ -218,6 +219,7 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
         {view === 'ready' && <AdminAuditChainPanel onSignOut={signOut} />}
         {view === 'ready' && <AdminChangeControlPanel onSignOut={signOut} />}
         {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
+        {view === 'ready' && <AdminApiKeysPanel onSignOut={signOut} />}
         {view === 'ready' && <AdminOperatorAccess />}
 
         {view === 'ready' && (
