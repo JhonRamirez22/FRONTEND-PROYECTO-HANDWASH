@@ -233,7 +233,7 @@ export function AdminStationRegistry({ onSignOut }: AdminStationRegistryProps) {
               return <tr key={station.stationId}>
                 <td><strong>{station.stationName}</strong><code className="station-id">{station.stationId}</code></td>
                 <td><span className={`admin-status-pill ${revoked ? 'admin-status-pill--deleted' : 'admin-status-pill--active'}`}>
-                  {revoked ? 'Revocado' : 'Activo'}
+                  {revoked ? 'Revocado' : station.activatedAtEpochMs === null ? 'Pendiente de activar' : 'Activo'}
                 </span></td>
                 <td>{station.lastStartedAtEpochMs ? formatDate(station.lastStartedAtEpochMs) : 'Sin actividad'}</td>
                 <td>{station.activeSessionId ? <code>{station.activeSessionId}</code> : '—'}</td>
