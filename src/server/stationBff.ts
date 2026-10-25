@@ -2,6 +2,10 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 const STATION_COOKIE = 'hw_station_credential';
 const SESSION_COOKIE = 'hw_station_session';
+const OPERATOR_KEY_COOKIE = 'hw_operator_key_session';
+const OPERATOR_COOKIE_PATH = '/api/operator';
+const API_KEY_PATTERN = /^hwk_[0-9a-f]{16}_[A-Za-z0-9_-]{43}$/;
+const KEY_SESSION_PATTERN = /^hws_[A-Za-z0-9_-]{43}$/;
 const CSRF_COOKIE = 'hw_station_csrf';
 const COOKIE_PATH = '/api/station';
 const CSRF_COOKIE_PATH = '/api';
@@ -144,6 +148,48 @@ export async function operatorStatus(request: Request): Promise<Response> {
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
   }
+}
+
+/** Console login with an ADMIN-issued API key. The key is traded for HttpOnly cookies; JS never sees a token. */
+export async function operatorKeyLogin(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 10)) return error(429, 'RATE_LIMITED');
+  const body = await readJson(request);
+  if (!body || typeof body.key !== 'string' || !API_KEY_PATTERN.test(body.key.trim())) {
+    return error(400, 'KEY_FORMAT_INVALID');
+  }
+  const linkStation = body.linkStation === true;
+  try {
+    const result = await callBackend('/api/v1/operator/key-login', 'POST',
+      { key: body.key.trim(), linkStation }, undefined, { 'X-Forwarded-For': clientAddress(request) });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || typeof result.body.sessionToken !== 'string'
+      || !KEY_SESSION_PATTERN.test(result.body.sessionToken) || !isUuid(result.body.stationId)
+      || typeof result.body.stationName !== 'string' || typeof result.body.label !== 'string'
+      || typeof result.body.expiresAtEpochMs !== 'number') {
+      return error(502, 'KEY_LOGIN_RESPONSE_INVALID');
+    }
+    const maxAge = Math.max(1, Math.min(43_200, Math.floor((result.body.expiresAtEpochMs - Date.now()) / 1000)));
+    const cookies = [`${OPERATOR_KEY_COOKIE}=${result.body.sessionToken}; Path=${OPERATOR_COOKIE_PATH}; `
+      + `Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`];
+    if (linkStation && isCredential(result.body.stationCredential)) {
+      cookies.push(persistentCookie(STATION_COOKIE, result.body.stationCredential));
+    }
+    return json({ stationId: result.body.stationId, stationName: result.body.stationName,
+      label: result.body.label, expiresAtEpochMs: result.body.expiresAtEpochMs,
+      stationLinked: linkStation && isCredential(result.body.stationCredential) }, 200, cookies);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+export async function operatorKeyLogout(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  const headers = new Headers({ 'Cache-Control': 'no-store, max-age=0', 'X-Content-Type-Options': 'nosniff' });
+  headers.append('Set-Cookie', `${OPERATOR_KEY_COOKIE}=; Path=${OPERATOR_COOKIE_PATH}; Max-Age=0; Secure; HttpOnly; SameSite=Strict`);
+  return new Response(null, { status: 204, headers });
 }
 
 export async function operatorClaim(request: Request): Promise<Response> {
@@ -593,6 +639,7 @@ function upstreamError(statusCode: number, body: unknown): Response {
     'ID_TOKEN_NO_VALIDO', 'CORREO_NO_VERIFICADO', 'TICKET_WEBSOCKET_NO_DISPONIBLE',
     'STATION_SESSION_MISMATCH', 'ACCESO_NO_AUTORIZADO', 'ASIGNACION_NO_DISPONIBLE',
     'PUESTO_CON_SESION_ACTIVA', 'TURNO_YA_ACTIVO', 'TURNO_INVALIDO', 'TURNO_NO_DISPONIBLE',
+    'KEY_NO_VALIDA', 'LIMITE_INTENTOS_KEY', 'KEYS_NO_DISPONIBLES',
     'FOTO_DESACTIVADA', 'FOTO_NO_ELEGIBLE', 'FOTO_YA_REGISTRADA', 'FOTO_NO_DISPONIBLE', 'IMAGEN_INVALIDA',
   ]);
   const upstreamCode = isObject(body) && typeof body.error === 'string' ? body.error : null;
@@ -647,8 +694,14 @@ function safeEqual(left: string, right: string): boolean {
 function isHexToken(value: string): boolean { return /^[a-f0-9]{64}$/.test(value); }
 function bearerToken(request: Request): string | null {
   const authorization = request.headers.get('authorization') ?? '';
-  return /^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(authorization)
-    && authorization.length <= 8_200 ? authorization : null;
+  if (/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(authorization)
+    && authorization.length <= 8_200) return authorization;
+  // No Cognito bearer: an operator signed in with an API key carries its session in an HttpOnly cookie.
+  const keySession = cookieValue(request, OPERATOR_KEY_COOKIE);
+  return keySession && KEY_SESSION_PATTERN.test(keySession) ? `KeySession ${keySession}` : null;
+}
+function clientAddress(request: Request): string {
+  return (request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown').slice(0, 64);
 }
 function isCredential(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{40,64}$/.test(value);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
+  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -492,5 +492,76 @@ describe('station activation through the enroll BFF route', () => {
     const response = await enroll(request('/api/station/enroll', 'POST', { activation: 'bad token ' + 'x'.repeat(40) }, guarded));
     expect(response.status).toBe(400);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+});
+
+describe('operator API key session through the BFF', () => {
+  const key = 'hwk_0123456789abcdef_' + 'A'.repeat(43);
+  const sessionToken = 'hws_' + 'C'.repeat(43);
+  const stationId = 'd398e61f-56d9-47d3-9381-bdff87731931';
+  const guarded = { Origin: origin, 'X-CSRF-Token': csrfToken, Cookie: `hw_station_csrf=${csrfToken}`,
+    'X-Forwarded-For': '203.0.113.88' };
+
+  beforeEach(() => {
+    vi.stubEnv('HANDWASH_PUBLIC_ORIGIN', origin);
+    vi.stubEnv('HANDWASH_BACKEND_ORIGIN', 'https://java.example.com');
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+  it('trades the key for HttpOnly cookies and never returns a token in JSON', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A',
+      label: 'María', stationCredential: stationCredential,
+    }), { status: 200 }));
+    const response = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST',
+      { key, linkStation: true }, guarded));
+    const payload = await response.json() as Record<string, unknown>;
+    const cookies = response.headers.get('set-cookie') ?? '';
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ stationId, stationName: 'Lavamanos A', label: 'María' });
+    expect(JSON.stringify(payload)).not.toContain(sessionToken);
+    expect(JSON.stringify(payload)).not.toContain(stationCredential);
+    expect(cookies).toContain(`hw_operator_key_session=${sessionToken}`);
+    expect(cookies).toContain('hw_station_credential=');
+    expect(cookies).toMatch(/HttpOnly/);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ key, linkStation: true });
+  });
+
+  it('rejects malformed keys and missing CSRF without calling Java', async () => {
+    const malformed = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST',
+      { key: 'hwk_short' }, guarded));
+    expect(malformed.status).toBe(400);
+    const noCsrf = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST', { key },
+      { Origin: origin, 'X-Forwarded-For': '203.0.113.88' }));
+    expect(noCsrf.status).toBe(403);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('passes a wrong key back as 401 without revealing why', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'KEY_NO_VALIDA' }), { status: 401 }));
+    const response = await operatorKeyLogin(request('/api/operator?action=key-login', 'POST', { key }, guarded));
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('uses the session cookie as a KeySession credential on operator calls, with no bearer header', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      grant: { subject: 'apikey_0123456789abcdef', email: 'María', stationId, stationName: 'Lavamanos A',
+        grantedBy: 'admin', grantedAtEpochMs: 1, revokedAtEpochMs: null }, activeSession: null,
+    }), { status: 200 }));
+    const response = await operatorStatus(request('/api/operator/me', 'GET', undefined,
+      { Cookie: `hw_operator_key_session=${sessionToken}` }));
+
+    expect(response.status).toBe(200);
+    const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe(`KeySession ${sessionToken}`);
+  });
+
+  it('logout clears the cookie', async () => {
+    const response = await operatorKeyLogout(request('/api/operator?action=key-logout', 'POST', {}, guarded));
+    expect(response.status).toBe(204);
+    expect(response.headers.get('set-cookie')).toContain('hw_operator_key_session=;');
   });
 });

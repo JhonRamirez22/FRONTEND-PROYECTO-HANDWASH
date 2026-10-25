@@ -1,5 +1,7 @@
 import {
   operatorClaim,
+  operatorKeyLogin,
+  operatorKeyLogout,
   operatorShiftStart,
   operatorShiftStatus,
   operatorShiftStop,
@@ -14,6 +16,8 @@ type Handler = (request: Request) => Promise<Response>;
 
 const routes: Record<string, Partial<Record<Method, Handler>>> = {
   claim: { POST: operatorClaim },
+  'key-login': { POST: operatorKeyLogin },
+  'key-logout': { POST: operatorKeyLogout },
   me: { GET: operatorStatus },
   session: { POST: operatorStartSession },
   shift: { GET: operatorShiftStatus, POST: operatorShiftStart },

@@ -1,4 +1,5 @@
 import type { Protocolo } from '@/types';
+import { authHeader } from './OperatorKeySession';
 
 export interface OperatorGrantView {
   subject: string;
@@ -21,14 +22,20 @@ export interface OperatorStatus {
   resumeError: boolean;
 }
 
+/** The server no longer accepts the credential (key revoked, session over, Cognito token expired). */
+export class SessionExpiredError extends Error {
+  constructor(message: string) { super(message); this.name = 'SessionExpiredError'; }
+}
+
 export class OperatorApi {
   async status(accessToken: string): Promise<OperatorStatus | null> {
     const response = await fetch('/api/operator/me', {
       method: 'GET', credentials: 'same-origin', cache: 'no-store',
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      headers: { ...authHeader(accessToken), Accept: 'application/json' },
     });
     if (response.status === 404) return null;
     const payload = await readPayload(response);
+    if (response.status === 401) throw new SessionExpiredError(messageFor(payload.code, response.status));
     if (!response.ok || !isGrant(payload.grant)) throw new Error(messageFor(payload.code, response.status));
     return {
       grant: payload.grant,
@@ -41,7 +48,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator/claim', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        ...authHeader(accessToken),
         'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken(),
         'X-Cognito-Id-Token': idToken,
       },
@@ -56,7 +63,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator/session', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
         'X-CSRF-Token': await csrfToken(),
       },
       body: JSON.stringify({ protocolo, requestId }),
@@ -69,7 +76,7 @@ export class OperatorApi {
   async shiftStatus(accessToken: string): Promise<ShiftView> {
     const response = await fetch('/api/operator?action=shift', {
       method: 'GET', credentials: 'same-origin', cache: 'no-store',
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { ...authHeader(accessToken) },
     });
     const payload = await readPayload(response);
     if (!response.ok || !isShift(payload)) throw new Error(messageFor(payload.code, response.status));
@@ -80,7 +87,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator?action=shift', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
         'X-CSRF-Token': await csrfToken(),
       },
       body: JSON.stringify({ hours, protocolo }),
@@ -94,7 +101,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator?action=shift-stop', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
         'X-CSRF-Token': await csrfToken(),
       },
       body: '{}',
@@ -106,7 +113,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator/stop', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
         'X-CSRF-Token': await csrfToken(),
       },
       body: JSON.stringify({ sessionId }),
@@ -118,7 +125,7 @@ export class OperatorApi {
     const response = await fetch('/api/operator/ticket', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json',
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
         'X-CSRF-Token': await csrfToken(),
       },
       body: JSON.stringify({ sessionId }),

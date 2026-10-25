@@ -46,11 +46,13 @@ describe('public kiosk routing', () => {
     expect(document.querySelector('.kiosk-connection--error')).toBeInTheDocument();
   });
 
-  it('exposes operator sign-in and registration only on the protected operator route', async () => {
+  it('exposes API key entry and account sign-in only on the protected operator route', async () => {
     window.location.hash = '#/operator';
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Control del puesto' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeInTheDocument();
+    expect(screen.getByLabelText('API key')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Iniciar sesión con cuenta' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear cuenta de operador' })).toBeInTheDocument();
   });
 
