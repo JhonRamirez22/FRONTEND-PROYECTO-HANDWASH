@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KEY_SESSION, OperatorKeySession } from '@/lib/OperatorKeySession';
+import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
 import { OperatorApi } from '@/lib/OperatorApi';
 
 const KEY = 'hwk_0123456789abcdef_' + 'A'.repeat(43);
@@ -29,7 +29,7 @@ describe('OperatorKeySession', () => {
     expect(session.isActive()).toBe(true);
     const [url, init] = vi.mocked(fetch).mock.calls[1]!;
     expect(String(url)).toBe('/api/operator?action=key-login');
-    expect(JSON.parse(String(init?.body))).toEqual({ key: KEY, linkStation: true });
+    expect(JSON.parse(String(init?.body))).toEqual({ key: KEY, linkStation: true, forceLink: false });
     expect((init?.headers as Record<string, string>)['X-CSRF-Token']).toBe(csrf);
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(KEY);
   });
@@ -67,5 +67,25 @@ describe('OperatorKeySession', () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}, 404));
     await new OperatorApi().status('real.cognito.token');
     expect((vi.mocked(fetch).mock.calls[1]![1]!.headers as Record<string, string>).Authorization).toBe('Bearer real.cognito.token');
+  });
+
+  it('tells the console when another Mac already holds the station, and can replace it on request', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse({ token: csrf }))
+      .mockResolvedValueOnce(jsonResponse({ stationId: 's1', stationName: 'Lavamanos A', label: 'María',
+        expiresAtEpochMs: Date.now() + 1000, stationLinked: false, macAlreadyLinked: true }))
+      .mockResolvedValueOnce(jsonResponse({ token: csrf }))
+      .mockResolvedValueOnce(jsonResponse({ stationId: 's1', stationName: 'Lavamanos A', label: 'María',
+        expiresAtEpochMs: Date.now() + 1000, stationLinked: true }));
+    const session = new OperatorKeySession();
+
+    expect(await session.login(KEY, true)).toMatchObject({ stationLinked: false, macAlreadyLinked: true });
+    expect(await session.login(KEY, true, true)).toMatchObject({ stationLinked: true, macAlreadyLinked: false });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[3]![1]!.body))).toMatchObject({ forceLink: true });
+  });
+
+  it('only ticks "this is the Mac" by default when the browser has no station yet', () => {
+    expect(defaultLinkMac(false)).toBe(true);
+    expect(defaultLinkMac(true)).toBe(false);
   });
 });

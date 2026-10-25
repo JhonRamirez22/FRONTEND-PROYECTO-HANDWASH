@@ -10,6 +10,13 @@ export interface KeyLoginProfile {
   label: string;
   expiresAtEpochMs: number;
   stationLinked: boolean;
+  /** Another Mac already holds this station; this device logged in as a console only. */
+  macAlreadyLinked: boolean;
+}
+
+/** The "this is the Mac" box starts ticked only when this browser has no station yet. */
+export function defaultLinkMac(browserHasStation: boolean): boolean {
+  return !browserHasStation;
 }
 
 /** Authorization headers for OperatorApi calls: a key session relies on its cookie, Cognito sends a bearer. */
@@ -30,13 +37,13 @@ export class OperatorKeySession {
     try { window.sessionStorage.removeItem(FLAG); } catch { /* storage unavailable */ }
   }
 
-  async login(rawKey: string, linkStation: boolean): Promise<KeyLoginProfile> {
+  async login(rawKey: string, linkStation: boolean, forceLink = false): Promise<KeyLoginProfile> {
     const key = rawKey.trim();
     if (!API_KEY_PATTERN.test(key)) throw new Error('La API key no tiene el formato correcto (empieza con hwk_).');
     const response = await fetch('/api/operator?action=key-login', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken() },
-      body: JSON.stringify({ key, linkStation }),
+      body: JSON.stringify({ key, linkStation, forceLink: linkStation && forceLink }),
     });
     const payload = await readPayload(response);
     if (response.status === 401) throw new Error('La API key no es válida o fue revocada. Pide otra a ADMIN.');
@@ -50,6 +57,7 @@ export class OperatorKeySession {
       label: typeof payload.label === 'string' ? payload.label : '',
       expiresAtEpochMs: typeof payload.expiresAtEpochMs === 'number' ? payload.expiresAtEpochMs : 0,
       stationLinked: payload.stationLinked === true,
+      macAlreadyLinked: payload.macAlreadyLinked === true,
     };
   }
 
