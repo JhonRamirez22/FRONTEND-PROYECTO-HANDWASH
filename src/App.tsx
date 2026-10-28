@@ -114,15 +114,15 @@ function App() {
     return <div className="full-page-state" role="status"><LoaderCircle className="animate-spin" />Validando acceso…</div>;
   }
   if (cloudMode && route === 'admin' && !cognitoAdminAuth.getAccessToken()) {
-    return <CloudAccessPage message={authError} />;
+    return <CloudAccessPage message={authError} onSignedIn={() => setAuthRevision((revision) => revision + 1)} />;
   }
 
   const roles: HumanRole[] = cloudMode ? cognitoAdminAuth.getHumanRoles() : ['OPERATOR'];
   if (cloudMode && route === 'admin' && !roles.includes('ADMIN')) {
-    return <AccessDenied onSignOut={() => cognitoAdminAuth.signOut()} />;
+    return <AccessDenied onSignOut={() => { void cognitoAdminAuth.signOut(); }} />;
   }
   if (cloudMode && route === 'admin') {
-    return <AdminAuditPage onBack={() => cognitoAdminAuth.signOut()} />;
+    return <AdminAuditPage onBack={() => { void cognitoAdminAuth.signOut(); }} />;
   }
   if (cloudMode && route === 'operator') {
     return <OperatorConsole authError={authError} onSignedOut={() => {
@@ -236,7 +236,7 @@ function Dashboard({ roles, cloudMode, publicStation = false, stationName = '', 
       publicStation={publicStation}
       environmentLabel={environmentLabel}
       status={cloudMode ? <div className="service-status"><span>Eventos Java</span><ConnectionStatusBadge /></div> : undefined}
-      onSignOut={cloudMode && !publicStation && !sessionActive ? () => cognitoAdminAuth.signOut() : undefined}
+      onSignOut={cloudMode && !publicStation && !sessionActive ? () => { void cognitoAdminAuth.signOut(); } : undefined}
     >
       <div className="page-heading">
         <div>

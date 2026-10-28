@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
-import { operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
+import { localAdminAuth, operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
@@ -300,11 +300,11 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
           {linkMac && <label className="operator-footnote"><input type="checkbox" checked={replaceMac} onChange={(event) => setReplaceMac(event.target.checked)} />{' '}
             Reemplazar el Mac anterior (déjalo desmarcado salvo que cambies de equipo)</label>}
         </form>
-        <details className="operator-footnote">
+        {!localAdminAuth && <details className="operator-footnote">
           <summary>Entrar con una cuenta (alternativa)</summary>
           <button className="operator-button operator-button--secondary" type="button" onClick={() => void signIn()}>Iniciar sesión con cuenta</button>
           {!operatorHasOwnPool && <button className="operator-button operator-button--secondary" type="button" onClick={() => void signUp()}>Crear cuenta de operador</button>}
-        </details>
+        </details>}
         <p className="operator-footnote"><ShieldCheck size={15} /> La key no se guarda en el navegador: se cambia por una sesión protegida y ADMIN puede revocarla en cualquier momento.</p>
       </section>
     </main>;

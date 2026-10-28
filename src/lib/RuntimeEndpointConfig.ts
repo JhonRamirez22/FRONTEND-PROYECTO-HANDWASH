@@ -5,6 +5,12 @@ export class RuntimeEndpointConfig {
       || window.__HANDWASH_CONFIG__?.cloudMode === true;
   }
 
+  /** ADMIN signs in with the Java backend's own accounts (backend on the Windows PC) instead of Cognito. */
+  static isLocalAdminLogin(): boolean {
+    return import.meta.env.VITE_ADMIN_LOGIN?.trim().toLowerCase() === 'local'
+      || window.__HANDWASH_CONFIG__?.adminLogin === 'local';
+  }
+
   static cognitoConfig(): { domain: string; clientId: string; redirectUri: string } {
     const runtime = window.__HANDWASH_CONFIG__;
     return {
