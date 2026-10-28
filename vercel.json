@@ -48,7 +48,7 @@
         },
         {
           "key": "Content-Security-Policy-Report-Only",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://*.cloudfront.net wss://*.cloudfront.net https://cognito-idp.sa-east-1.amazonaws.com https://*.auth.sa-east-1.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://*.auth.sa-east-1.amazoncognito.com; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://*.cloudfront.net wss://*.cloudfront.net https://*.ts.net wss://*.ts.net https://cognito-idp.sa-east-1.amazonaws.com https://*.auth.sa-east-1.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://*.auth.sa-east-1.amazoncognito.com; object-src 'none'"
         }
       ]
     }
