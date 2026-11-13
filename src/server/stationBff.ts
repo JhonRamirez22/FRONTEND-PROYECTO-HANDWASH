@@ -263,6 +263,31 @@ export async function operatorStopSession(request: Request): Promise<Response> {
   }
 }
 
+/** Rehearsal mode: counts only. The operator confirms or corrects the step the system detected. */
+export async function operatorStepFeedback(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
+  const isStep = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 6;
+  const corrected = body.resultado === 'CORREGIDO';
+  if (!isStep(body.paso) || !corrected && body.resultado !== 'CONFIRMADO'
+    || corrected && (!isStep(body.pasoCorrecto) || body.pasoCorrecto === body.paso)) {
+    return error(400, 'FEEDBACK_INVALID');
+  }
+  try {
+    const result = await callBackend(`/api/v1/operator/sessions/${body.sessionId}/feedback`, 'POST',
+      corrected ? { paso: body.paso, resultado: 'CORREGIDO', pasoCorrecto: body.pasoCorrecto }
+        : { paso: body.paso, resultado: 'CONFIRMADO' }, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    return json({ recorded: true });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 interface SafeShift {
   active: boolean;
   protocolo: 'AGUA_Y_JABON' | 'DOMESTICO' | 'CLINICO_QUIRURGICO' | null;

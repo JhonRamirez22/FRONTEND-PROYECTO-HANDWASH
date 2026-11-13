@@ -6,6 +6,10 @@
       "destination": "/api/operator?action=claim"
     },
     {
+      "source": "/api/operator/feedback",
+      "destination": "/api/operator?action=feedback"
+    },
+    {
       "source": "/api/operator/me",
       "destination": "/api/operator?action=me"
     },
