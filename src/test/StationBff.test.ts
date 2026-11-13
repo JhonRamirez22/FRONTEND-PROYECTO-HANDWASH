@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession,
+  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -374,6 +374,42 @@ describe('station Vercel BFF', () => {
       const response = await operatorShiftStart(request('/api/operator?action=shift', 'POST', { hours, protocolo: 'AGUA_Y_JABON' }, mutation()));
       expect(response.status).toBe(400);
       expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    describe('rehearsal feedback', () => {
+      const sessionId = '11111111-1111-4111-8111-111111111111';
+
+      it('forwards a validated confirmation or correction to the operator endpoint', async () => {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+        const ok = await operatorStepFeedback(request('/api/operator?action=feedback', 'POST',
+          { sessionId, paso: 3, resultado: 'CORREGIDO', pasoCorrecto: 5, extra: 'x' }, mutation()));
+
+        expect(ok.status).toBe(200);
+        expect(String(vi.mocked(fetch).mock.calls[0]?.[0]))
+          .toBe(`https://java.example.com/api/v1/operator/sessions/${sessionId}/feedback`);
+        expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body)))
+          .toEqual({ paso: 3, resultado: 'CORREGIDO', pasoCorrecto: 5 });
+      });
+
+      it.each([
+        { sessionId: 'nope', paso: 1, resultado: 'CONFIRMADO' },
+        { sessionId, paso: 7, resultado: 'CONFIRMADO' },
+        { sessionId, paso: 1, resultado: 'TAL_VEZ' },
+        { sessionId, paso: 1, resultado: 'CORREGIDO' },
+      ])('rejects %j without contacting Java', async (body) => {
+        const response = await operatorStepFeedback(request('/api/operator?action=feedback', 'POST', body, mutation()));
+        expect(response.status).toBe(400);
+        expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      });
+
+      it('needs a bearer token, the origin and the CSRF token', async () => {
+        const body = { sessionId, paso: 1, resultado: 'CONFIRMADO' };
+        expect((await operatorStepFeedback(request('/api/operator?action=feedback', 'POST', body,
+          fresh({ Origin: origin, 'X-CSRF-Token': csrfToken, Cookie: `hw_station_csrf=${csrfToken}` })))).status).toBe(401);
+        expect((await operatorStepFeedback(request('/api/operator?action=feedback', 'POST', body,
+          fresh({ Origin: origin, Authorization: bearer })))).status).toBe(403);
+        expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      });
     });
 
     it('protects start and stop with origin and CSRF', async () => {

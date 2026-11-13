@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
 import { localAdminAuth, operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
+import { RehearsalPanel } from './RehearsalPanel';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
@@ -48,6 +49,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const activeSessionId = useSessionStore((state) => state.sessionId);
   const sessionActive = useSessionStore((state) => state.isActive);
   const currentStep = useSessionStore((state) => state.currentStep);
+  const candidateStep = useSessionStore((state) => state.claseCandidata);
   const { stream, setStream } = useStationCamera();
   const preflight = operatorPreflight({
     assigned: Boolean(status),
@@ -430,6 +432,11 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
             {sessionActive ? <>
               <div className="operator-active-session"><span>Sesión Java activa</span><code>{activeSessionId}</code>
                 <strong>{currentStep ? `Paso confirmado: ${currentStep}` : 'Esperando primera confirmación de Java'}</strong></div>
+              <RehearsalPanel detectedStep={candidateStep || currentStep} onFeedback={async (step, correctedTo) => {
+                const activeToken = currentToken();
+                if (!activeToken || !activeSessionId) throw new Error('Sin sesión activa.');
+                await operatorApi.stepFeedback(activeToken, activeSessionId, step, correctedTo);
+              }} />
               {!shift?.active && <button className="operator-button operator-button--danger" type="button" onClick={() => void stopSession()} disabled={busy}>
                 {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Square size={15} />} Detener sesión
               </button>}

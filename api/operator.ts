@@ -7,6 +7,7 @@ import {
   operatorShiftStop,
   operatorStartSession,
   operatorStatus,
+  operatorStepFeedback,
   operatorStopSession,
   operatorTicket,
 } from '../src/server/stationBff.js';
@@ -18,6 +19,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   claim: { POST: operatorClaim },
   'key-login': { POST: operatorKeyLogin },
   'key-logout': { POST: operatorKeyLogout },
+  feedback: { POST: operatorStepFeedback },
   me: { GET: operatorStatus },
   session: { POST: operatorStartSession },
   shift: { GET: operatorShiftStatus, POST: operatorShiftStart },

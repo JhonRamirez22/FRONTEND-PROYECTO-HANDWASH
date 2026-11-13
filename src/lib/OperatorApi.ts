@@ -121,6 +121,21 @@ export class OperatorApi {
     if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
   }
 
+  /** Rehearsal mode: confirm (no `correctedTo`) or correct what the system detected. Counts only. */
+  async stepFeedback(accessToken: string, sessionId: string, step: number, correctedTo?: number): Promise<void> {
+    const response = await fetch('/api/operator/feedback', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: {
+        ...authHeader(accessToken), 'Content-Type': 'application/json',
+        'X-CSRF-Token': await csrfToken(),
+      },
+      body: JSON.stringify(correctedTo === undefined
+        ? { sessionId, paso: step, resultado: 'CONFIRMADO' }
+        : { sessionId, paso: step, resultado: 'CORREGIDO', pasoCorrecto: correctedTo }),
+    });
+    if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
+  }
+
   async websocketTicket(accessToken: string, sessionId: string): Promise<string> {
     const response = await fetch('/api/operator/ticket', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
