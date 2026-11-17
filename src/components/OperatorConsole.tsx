@@ -3,11 +3,13 @@ import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, Shiel
 import { localAdminAuth, operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
 import { RehearsalPanel } from './RehearsalPanel';
 import { CameraLinkPanel } from './CameraLinkPanel';
+import { describeAgent, type AgentView } from '@/lib/CameraAgent';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, defaultLinkMac, phoneCodeFromHash } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
 import { ContinuityBrowserCameraService, isPhoneLikeDevice, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
 import { useStationCamera } from '@/hooks/useStationCamera';
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
 import { OperatorShiftPanel } from './OperatorShiftPanel';
@@ -48,6 +50,10 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [shift, setShift] = useState<ShiftView | null>(null);
   const [phoneLink, setPhoneLink] = useState<{ url: string; expiresAt: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // iPhone through the helper that runs on this Mac (reads Continuity straight from macOS, no browser).
+  const [iphoneRequestedAt, setIphoneRequestedAt] = useState<number | null>(null);
+  const [agent, setAgent] = useState<AgentView | null>(null);
+  const iphoneRequested = iphoneRequestedAt !== null;
   const isPhone = isPhoneLikeDevice();
   const videoRef = useRef<HTMLVideoElement>(null);
   const activeSessionId = useSessionStore((state) => state.sessionId);
@@ -55,6 +61,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const currentStep = useSessionStore((state) => state.currentStep);
   const candidateStep = useSessionStore((state) => state.claseCandidata);
   const { stream, setStream } = useStationCamera();
+  useScreenWakeLock(isPhone && Boolean(stream));
   const preflight = operatorPreflight({
     assigned: Boolean(status),
     cameraLive: Boolean(stream?.getVideoTracks().some((track) => track.readyState === 'live')),
@@ -62,7 +69,8 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   });
   // Any device the operator links a camera on may publish it: the operator grant authorizes the session ticket.
   const relayedSession = status && sessionActive ? activeSessionId : null;
-  const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream, 'operator');
+  // While the helper owns the camera the browser must not publish a second video to the same PC.
+  const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, iphoneRequested ? null : stream, 'operator');
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
     const activeToken = currentToken();
     if (!activeToken) throw new Error('La sesión de operador expiró.');
@@ -128,6 +136,24 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       .catch((cause: unknown) => setError(messageOf(cause)))
       .finally(() => setBusy(false));
   }, [keyMode]);
+
+  // While the iPhone helper is wanted: renew the request and read the helper's state.
+  useEffect(() => {
+    if (!iphoneRequested) return undefined;
+    const activeToken = currentToken();
+    if (!activeToken) return undefined;
+    let alive = true;
+    const renew = () => { void operatorApi.requestCameraAgent(activeToken, true).catch(() => undefined); };
+    const read = () => {
+      void operatorApi.cameraAgent(activeToken).then((view) => { if (alive) setAgent(view); }).catch(() => { if (alive) setAgent(null); });
+      if (alive) setNow(Date.now());
+    };
+    renew();
+    read();
+    const renewTimer = window.setInterval(renew, 10_000);
+    const readTimer = window.setInterval(read, 2_000);
+    return () => { alive = false; window.clearInterval(renewTimer); window.clearInterval(readTimer); };
+  }, [iphoneRequested, currentToken]);
 
   useEffect(() => {
     if (!phoneLink) return undefined;
@@ -224,7 +250,15 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     finally { setBusy(false); }
   }
 
+  function stopHelper() {
+    setIphoneRequestedAt(null);
+    setAgent(null);
+    const activeToken = currentToken();
+    if (activeToken) void operatorApi.requestCameraAgent(activeToken, false).catch(() => undefined);
+  }
+
   async function authorizeCamera(deviceId?: string) {
+    stopHelper();
     setCameraError(null);
     setCameraBusy(true);
     try {
@@ -260,6 +294,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
   /** This phone's own camera (any Android or iOS browser): no Continuity involved. */
   async function linkPhoneCamera() {
+    stopHelper();
     setCameraError(null);
     setCameraBusy(true);
     try {
@@ -437,7 +472,9 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
         <section className="operator-grid">
           <CameraLinkPanel linked={Boolean(stream)} busy={cameraBusy} error={cameraError} choices={cameraChoices}
             chosen={chosenCamera} onChoose={setChosenCamera} onLink={(deviceId) => void authorizeCamera(deviceId)} videoRef={videoRef}
-            onLinkIphone={() => void authorizeCamera()} onLinkPhone={() => void (isPhone ? linkPhoneCamera() : showPhoneLink())}
+            onLinkIphone={() => { setCameraError(null); setIphoneRequestedAt(Date.now()); }}
+            agentNote={describeAgent({ agent, requested: iphoneRequested, waitedMs: iphoneRequestedAt === null ? 0 : now - iphoneRequestedAt })}
+            onUseBrowser={() => void authorizeCamera()} onLinkPhone={() => void (isPhone ? linkPhoneCamera() : showPhoneLink())}
             isPhone={isPhone} phoneLink={phoneLink ? { url: phoneLink.url, secondsLeft: Math.max(0, Math.ceil((phoneLink.expiresAt - now) / 1_000)) } : null} />
 
           <div className="operator-panel operator-session-panel">

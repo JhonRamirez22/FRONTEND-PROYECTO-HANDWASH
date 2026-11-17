@@ -187,6 +187,48 @@ export async function operatorKeyLogin(request: Request): Promise<Response> {
   }
 }
 
+const AGENT_STATES = ['none', 'offline', 'ready', 'streaming', 'waiting', 'no-iphone', 'error'];
+
+/** State of the iPhone camera helper that runs on the station's Mac, as the console needs to show it. */
+export async function operatorCameraAgent(request: Request): Promise<Response> {
+  if (isCrossSite(request)) return error(403, 'ORIGIN_INVALID');
+  if (!allowRequest(request, 120)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/camera-agent', 'GET', undefined, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    const body = result.body;
+    if (!isObject(body) || typeof body.online !== 'boolean' || typeof body.wanted !== 'boolean'
+      || typeof body.state !== 'string' || !AGENT_STATES.includes(body.state)) {
+      return error(502, 'CAMERA_AGENT_RESPONSE_INVALID');
+    }
+    const text = (value: unknown) => (typeof value === 'string' ? value.slice(0, 160) : '');
+    return json({ online: body.online, wanted: body.wanted, state: body.state, device: text(body.device), message: text(body.message) });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+/** The console asks for (or withdraws) the iPhone camera helper; it must keep renewing while it wants it. */
+export async function operatorCameraAgentRequest(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 60)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || typeof body.wanted !== 'boolean') return error(400, 'WANTED_INVALID');
+  try {
+    const result = await callBackend('/api/v1/operator/camera-agent/request', 'POST', { wanted: body.wanted }, undefined,
+      { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    return json({ requested: body.wanted });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 /** Ticket for the operator's own device (browser on a Mac or phone, or the native iPhone helper) to publish the camera. */
 export async function operatorWebrtcTicket(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);

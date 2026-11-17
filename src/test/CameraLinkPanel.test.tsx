@@ -7,7 +7,7 @@ import { CameraLinkPanel } from '@/components/CameraLinkPanel';
 const base = {
   linked: false, busy: false, error: null as string | null, choices: [] as { deviceId: string; label: string; likelyIphone: boolean }[],
   chosen: '', onChoose: vi.fn(), onLink: vi.fn(), onLinkIphone: vi.fn(), onLinkPhone: vi.fn(),
-  isPhone: false, phoneLink: null as { url: string; secondsLeft: number } | null, videoRef: createRef<HTMLVideoElement>(),
+  isPhone: false, agentNote: null as { tone: 'ok' | 'wait' | 'warn'; text: string; browserFallback: boolean } | null, onUseBrowser: vi.fn(), phoneLink: null as { url: string; secondsLeft: number } | null, videoRef: createRef<HTMLVideoElement>(),
 };
 
 describe('CameraLinkPanel', () => {
@@ -25,6 +25,17 @@ describe('CameraLinkPanel', () => {
 
     expect(onLinkIphone).toHaveBeenCalledTimes(1);
     expect(onLinkPhone).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows what the iPhone helper is doing and offers the browser only when the helper cannot be used', async () => {
+    const onUseBrowser = vi.fn();
+    const { rerender } = render(<CameraLinkPanel {...base} agentNote={{ tone: 'ok', text: 'Ayudante conectado.', browserFallback: false }} onUseBrowser={onUseBrowser} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Ayudante conectado.');
+    expect(screen.queryByRole('button', { name: 'Probar con el navegador' })).toBeNull();
+
+    rerender(<CameraLinkPanel {...base} agentNote={{ tone: 'warn', text: 'El ayudante del Mac no está abierto.', browserFallback: true }} onUseBrowser={onUseBrowser} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Probar con el navegador' }));
+    expect(onUseBrowser).toHaveBeenCalledTimes(1);
   });
 
   it('on a phone the second button uses that phone own camera', () => {

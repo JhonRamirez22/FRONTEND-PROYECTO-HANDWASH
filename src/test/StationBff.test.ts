@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorWebrtcTicket, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
+  csrf, enroll, operatorCameraAgent, operatorCameraAgentRequest, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorWebrtcTicket, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -627,6 +627,39 @@ describe('operator API key session through the BFF', () => {
     it('rejects a ticket for the wrong peer role or a malformed answer', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ticket, peerRole: 'RTX_PRODUCER', expiresAt: new Date().toISOString() }), { status: 200 }));
       expect((await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId }, withSession))).status).toBe(502);
+    });
+  });
+
+  describe('iPhone camera helper', () => {
+    const withSession = { ...guarded, Cookie: `hw_station_csrf=${csrfToken}; hw_operator_key_session=${sessionToken}` };
+
+    it('reads the helper state with the console session and passes on only the known fields', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+        online: true, wanted: false, state: 'ready', device: 'Cámara de iPhone', message: 'ok', secret: 'x',
+      }), { status: 200 }));
+      const response = await operatorCameraAgent(request('/api/operator?action=camera-agent', 'GET', undefined,
+        { Cookie: `hw_operator_key_session=${sessionToken}` }));
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ online: true, wanted: false, state: 'ready', device: 'Cámara de iPhone', message: 'ok' });
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe('https://java.example.com/api/v1/operator/camera-agent');
+    });
+
+    it('rejects a malformed helper answer and needs a signed-in console', async () => {
+      expect((await operatorCameraAgent(request('/api/operator?action=camera-agent', 'GET'))).status).toBe(401);
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ online: 'yes', state: 'weird' }), { status: 200 }));
+      expect((await operatorCameraAgent(request('/api/operator?action=camera-agent', 'GET', undefined,
+        { Cookie: `hw_operator_key_session=${sessionToken}` }))).status).toBe(502);
+    });
+
+    it('asks Java to start or stop the helper with origin, CSRF and a boolean', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const ok = await operatorCameraAgentRequest(request('/api/operator?action=camera-agent-request', 'POST', { wanted: true }, withSession));
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ wanted: true });
+
+      expect((await operatorCameraAgentRequest(request('/api/operator?action=camera-agent-request', 'POST', { wanted: 'yes' }, withSession))).status).toBe(400);
+      expect((await operatorCameraAgentRequest(request('/api/operator?action=camera-agent-request', 'POST', { wanted: true }, guarded))).status).toBe(401);
     });
   });
 
