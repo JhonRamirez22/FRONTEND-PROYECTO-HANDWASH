@@ -62,7 +62,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   });
   // Any device the operator links a camera on may publish it: the operator grant authorizes the session ticket.
   const relayedSession = status && sessionActive ? activeSessionId : null;
-  const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream);
+  const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream, 'operator');
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
     const activeToken = currentToken();
     if (!activeToken) throw new Error('La sesión de operador expiró.');

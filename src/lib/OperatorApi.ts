@@ -27,6 +27,8 @@ export class SessionExpiredError extends Error {
   constructor(message: string) { super(message); this.name = 'SessionExpiredError'; }
 }
 
+import { parseIceServers, type WebRtcAccess } from './StationApi';
+
 export class OperatorApi {
   async status(accessToken: string): Promise<OperatorStatus | null> {
     const response = await fetch('/api/operator/me', {
@@ -119,6 +121,20 @@ export class OperatorApi {
       body: JSON.stringify({ sessionId }),
     });
     if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
+  }
+
+  /** Ticket and ICE servers to publish the camera of whichever device the operator uses (Mac, phone, helper). */
+  async webrtcAccess(accessToken: string, sessionId: string): Promise<WebRtcAccess> {
+    const response = await fetch('/api/operator?action=webrtc-ticket', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { ...authHeader(accessToken), 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken() },
+      body: JSON.stringify({ sessionId }),
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || typeof payload.ticket !== 'string' || payload.ticket.length < 32) {
+      throw new Error(messageFor(payload.code, response.status));
+    }
+    return { ticket: payload.ticket, iceServers: parseIceServers(payload.iceServers) };
   }
 
   /** A one-time code (shown as a QR) that opens this console on a phone without typing the key there. */
