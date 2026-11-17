@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { Camera, Check, Smartphone, VideoOff } from 'lucide-react';
+import type { AgentDescription } from '@/lib/CameraAgent';
 import { QrImage } from './QrImage';
 
 export interface CameraOption { deviceId: string; label: string; likelyIphone: boolean }
@@ -20,11 +21,15 @@ interface CameraLinkPanelProps {
   isPhone: boolean;
   phoneLink: { url: string; secondsLeft: number } | null;
   videoRef: RefObject<HTMLVideoElement>;
+  /** Where the iPhone helper stands, when it was requested. */
+  agentNote?: AgentDescription | null;
+  /** Give up on the helper and try the browser camera instead. */
+  onUseBrowser?: () => void;
 }
 
 /** Links the iPhone (Continuity) or an Android phone; the video then goes straight to the YOLO PC. */
 export function CameraLinkPanel({
-  linked, busy, error, choices, chosen, onChoose, onLink, onLinkIphone, onLinkPhone, isPhone, phoneLink, videoRef,
+  linked, busy, error, choices, chosen, onChoose, onLink, onLinkIphone, onLinkPhone, isPhone, phoneLink, videoRef, agentNote = null, onUseBrowser,
 }: CameraLinkPanelProps) {
   return (
     <div className="operator-panel operator-camera-panel">
@@ -46,10 +51,18 @@ export function CameraLinkPanel({
           <Smartphone size={16} /> {isPhone ? 'Usar la cámara de este celular' : 'Conectar un celular Android'}
         </button>
       </div>
+      {agentNote && <p className={`operator-agent-note is-${agentNote.tone}`} role="status">{agentNote.text}</p>}
+      {agentNote?.browserFallback && onUseBrowser && (
+        <button className="operator-button operator-button--secondary" type="button" disabled={busy} onClick={onUseBrowser}>
+          <Camera size={16} /> Probar con el navegador
+        </button>
+      )}
       <p className="operator-footnote">
-        iPhone: en este Mac, con el iPhone cerca, desbloqueado y con Wi-Fi y Bluetooth activos (macOS Ventura o posterior). El navegador pedirá permiso de cámara.
+        iPhone: se usa el ayudante de este Mac (INICIAR-CAMARA-IPHONE), que lee la cámara de Continuidad directo de macOS, sin navegador. Mantén el iPhone cerca, desbloqueado y con Wi-Fi y Bluetooth.
         {isPhone ? '' : ' Celular Android u otro: se muestra un código QR; ábrelo con la cámara del celular.'}
       </p>
+
+      {isPhone && linked && <p className="operator-footnote">Deja esta pantalla abierta y el celular cargando: si se bloquea, el video se corta.</p>}
 
       {phoneLink && <div className="operator-phone-link" role="status">
         <QrImage value={phoneLink.url} label="QR para abrir la consola en el celular" size={176} />

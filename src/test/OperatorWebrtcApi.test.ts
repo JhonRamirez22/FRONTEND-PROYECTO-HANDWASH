@@ -28,3 +28,28 @@ describe('operator WebRTC access client', () => {
     await expect(new OperatorApi().webrtcAccess(KEY_SESSION, 's')).rejects.toThrow();
   });
 });
+
+describe('operator camera helper client', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reads the helper state and requests or withdraws the iPhone camera', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/station/csrf') return new Response(JSON.stringify({ token: 'a'.repeat(64) }), { status: 200 });
+      if (url === '/api/operator?action=camera-agent') {
+        return new Response(JSON.stringify({ online: true, wanted: true, state: 'streaming', device: 'iPhone', message: '' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ requested: true }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const api = new OperatorApi();
+
+    expect(await api.cameraAgent(KEY_SESSION)).toMatchObject({ online: true, state: 'streaming' });
+    await api.requestCameraAgent(KEY_SESSION, true);
+
+    const calls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(calls).toContain('/api/operator?action=camera-agent-request');
+    const request = fetchMock.mock.calls.find((call) => String(call[0]).includes('camera-agent-request'))?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual({ wanted: true });
+  });
+});

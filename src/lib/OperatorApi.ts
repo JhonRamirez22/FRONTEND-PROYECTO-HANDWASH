@@ -28,6 +28,7 @@ export class SessionExpiredError extends Error {
 }
 
 import { parseIceServers, type WebRtcAccess } from './StationApi';
+import type { AgentView } from './CameraAgent';
 
 export class OperatorApi {
   async status(accessToken: string): Promise<OperatorStatus | null> {
@@ -119,6 +120,29 @@ export class OperatorApi {
         'X-CSRF-Token': await csrfToken(),
       },
       body: JSON.stringify({ sessionId }),
+    });
+    if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
+  }
+
+  /** The iPhone camera helper that runs on the station's Mac: is it alive, what is it doing. */
+  async cameraAgent(accessToken: string): Promise<AgentView> {
+    const response = await fetch('/api/operator?action=camera-agent', {
+      method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { ...authHeader(accessToken), Accept: 'application/json' },
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || typeof payload.online !== 'boolean' || typeof payload.wanted !== 'boolean' || typeof payload.state !== 'string') {
+      throw new Error(messageFor(payload.code, response.status));
+    }
+    return { online: payload.online, wanted: payload.wanted, state: payload.state as AgentView['state'],
+      device: typeof payload.device === 'string' ? payload.device : '', message: typeof payload.message === 'string' ? payload.message : '' };
+  }
+
+  /** Ask for (true) or withdraw (false) the helper; the request expires in 30 s unless renewed. */
+  async requestCameraAgent(accessToken: string, wanted: boolean): Promise<void> {
+    const response = await fetch('/api/operator?action=camera-agent-request', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { ...authHeader(accessToken), 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken() },
+      body: JSON.stringify({ wanted }),
     });
     if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
   }

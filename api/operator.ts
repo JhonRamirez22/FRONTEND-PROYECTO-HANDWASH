@@ -1,4 +1,6 @@
 import {
+  operatorCameraAgent,
+  operatorCameraAgentRequest,
   operatorClaim,
   operatorKeyLogin,
   operatorKeyLogout,
@@ -19,6 +21,8 @@ type Method = 'GET' | 'POST';
 type Handler = (request: Request) => Promise<Response>;
 
 const routes: Record<string, Partial<Record<Method, Handler>>> = {
+  'camera-agent': { GET: operatorCameraAgent },
+  'camera-agent-request': { POST: operatorCameraAgentRequest },
   claim: { POST: operatorClaim },
   'key-login': { POST: operatorKeyLogin },
   'key-logout': { POST: operatorKeyLogout },

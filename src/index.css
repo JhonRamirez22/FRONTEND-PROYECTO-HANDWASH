@@ -1127,3 +1127,8 @@
 .operator-phone-link p { margin: 0; font-size: 13px; line-height: 1.5; }
 .qr-image { line-height: 0; max-width: 100%; }
 .qr-image svg { width: 100%; height: auto; }
+
+.operator-agent-note { margin: 0; padding: 10px 12px; border-radius: 9px; font-size: 13px; line-height: 1.5; background: #1d3039; color: #edf5f4; }
+.operator-agent-note.is-ok { border: 1px solid #2f7a73; }
+.operator-agent-note.is-wait { border: 1px solid #344a54; color: #b5c5c8; }
+.operator-agent-note.is-warn { border: 1px solid #a07a2a; color: #f2dfae; }
