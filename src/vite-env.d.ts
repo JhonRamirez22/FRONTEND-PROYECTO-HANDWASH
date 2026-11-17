@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_WS_URL?: string
   readonly VITE_CAMERA_STREAM_URL?: string
   readonly VITE_ADMIN_LOGIN?: string
+  readonly VITE_STEPS_IN_EVALUATION?: string
   readonly VITE_COGNITO_DOMAIN?: string
   readonly VITE_COGNITO_CLIENT_ID?: string
   readonly VITE_COGNITO_REDIRECT_URI?: string

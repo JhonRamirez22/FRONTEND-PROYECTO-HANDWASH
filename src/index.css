@@ -221,6 +221,7 @@
 .kiosk-progress ol::before { position: absolute; top: 15px; bottom: 15px; left: 13px; border-left: 1px solid #d5e2df; content: ''; }
 .kiosk-progress li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 46px; padding: 5px 0; color: #53666b; font-size: 14px; }
 .kiosk-step-copy { display: grid; gap: 2px; min-width: 0; }
+.kiosk-step-evaluation { font-weight: 600; color: #8a5a00; }
 .kiosk-step-label { color: inherit; line-height: 1.35; }
 .kiosk-progress li small { color: #53666b; font-size: 11px; font-weight: 500; }
 .kiosk-progress li.is-current { color: #173f52; font-weight: 700; }
