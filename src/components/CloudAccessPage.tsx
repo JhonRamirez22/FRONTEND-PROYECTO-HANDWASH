@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { cognitoAdminAuth, localAdminAuth } from '@/lib/adminAuth';
+import { TotpEnrollment } from './TotpEnrollment';
 import { DeploymentStatusService, type DeploymentStatus } from '@/lib/DeploymentStatusService';
 
 const deploymentStatusService = new DeploymentStatusService();
@@ -99,13 +100,7 @@ export function CloudAccessPage({ message, onSignedIn }: CloudAccessPageProps) {
         )}
         {localAdminAuth ? (
           <form className="access-form" onSubmit={(event) => void signInLocal(event)}>
-            {enrollment && (
-              <div className="setup-notice" role="status">
-                <strong>Registra tu autenticador (solo se muestra una vez)</strong>
-                <p>Agrega esta clave en tu app de autenticación (Microsoft Authenticator, Google Authenticator…) y escribe el código de 6 dígitos.</p>
-                <code aria-label="Clave TOTP">{enrollment.secret}</code>
-              </div>
-            )}
+            {enrollment && <TotpEnrollment secret={enrollment.secret} otpauthUri={enrollment.otpauthUri} />}
             <label htmlFor="admin-user">Usuario</label>
             <input id="admin-user" value={username} onChange={(event) => setUsername(event.target.value)}
               autoComplete="username" autoCapitalize="none" spellCheck={false} required />
