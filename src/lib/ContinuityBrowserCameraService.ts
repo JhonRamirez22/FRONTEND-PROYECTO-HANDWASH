@@ -51,6 +51,26 @@ export class ContinuityBrowserCameraService {
     }
   }
 
+  /** This phone or tablet's own camera (rear first), for any Android or iOS browser: no Continuity needed. */
+  static async openPhoneCamera(mediaDevices: MediaDevices = navigator.mediaDevices,
+    secureContext = window.isSecureContext): Promise<MediaStream> {
+    if (!secureContext) throw new Error('La cámara requiere abrir la página con HTTPS.');
+    if (!mediaDevices?.getUserMedia) throw new Error('Este navegador no permite usar la cámara.');
+    try {
+      return await mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 } },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        throw new Error('Permite el acceso a la cámara en este celular (candado de la barra de direcciones) y vuelve a intentar.');
+      }
+      if (error instanceof Error && error.name === 'NotFoundError') throw new Error('Este celular no expone ninguna cámara al navegador.');
+      throw error;
+    }
+  }
+
   /** Video inputs the operator may pick manually; Desk View is never offered. */
   static async listCameras(mediaDevices: MediaDevices = navigator.mediaDevices): Promise<CameraChoice[]> {
     if (!mediaDevices?.enumerateDevices) return [];
@@ -103,6 +123,11 @@ async function waitForContinuity(mediaDevices: MediaDevices, waitMs: number, pol
     if (found || Date.now() >= deadline) return found ?? null;
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
+}
+
+/** A phone or tablet browser: its own camera can be the one that feeds the YOLO PC. */
+export function isPhoneLikeDevice(userAgent: string = navigator.userAgent): boolean {
+  return /android|iphone|ipad|ipod|mobile/i.test(userAgent);
 }
 
 export function stopTracks(stream: MediaStream | null | undefined): void {

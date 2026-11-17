@@ -121,6 +121,21 @@ export class OperatorApi {
     if (!response.ok) throw new Error(messageFor((await readPayload(response)).code, response.status));
   }
 
+  /** A one-time code (shown as a QR) that opens this console on a phone without typing the key there. */
+  async phoneLink(accessToken: string): Promise<{ code: string; expiresInSeconds: number }> {
+    const response = await fetch('/api/operator?action=phone-link', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { ...authHeader(accessToken), 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken() },
+      body: '{}',
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || typeof payload.code !== 'string' || !/^[A-Za-z0-9_-]{40,64}$/.test(payload.code)
+      || typeof payload.expiresInSeconds !== 'number') {
+      throw new Error(messageFor(payload.code, response.status));
+    }
+    return { code: payload.code, expiresInSeconds: payload.expiresInSeconds };
+  }
+
   /** Rehearsal mode: confirm (no `correctedTo`) or correct what the system detected. Counts only. */
   async stepFeedback(accessToken: string, sessionId: string, step: number, correctedTo?: number): Promise<void> {
     const response = await fetch('/api/operator/feedback', {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
+  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -593,6 +593,58 @@ describe('operator API key session through the BFF', () => {
     expect(response.status).toBe(200);
     const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`KeySession ${sessionToken}`);
+  });
+
+  describe('phone link (open the console on a phone by QR)', () => {
+    const phoneCode = 'P'.repeat(43);
+    const withSession = { ...guarded, Cookie: `hw_station_csrf=${csrfToken}; hw_operator_key_session=${sessionToken}` };
+
+    it('asks Java for a one-time code on behalf of the signed-in console', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ code: phoneCode, expiresInSeconds: 120, extra: 'x' }), { status: 200 }));
+      const response = await operatorPhoneLink(request('/api/operator?action=phone-link', 'POST', {}, withSession));
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ code: phoneCode, expiresInSeconds: 120 });
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe('https://java.example.com/api/v1/operator/phone-link');
+      const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe(`KeySession ${sessionToken}`);
+    });
+
+    it('needs a signed-in console, the origin and the CSRF token', async () => {
+      expect((await operatorPhoneLink(request('/api/operator?action=phone-link', 'POST', {}, guarded))).status).toBe(401);
+      expect((await operatorPhoneLink(request('/api/operator?action=phone-link', 'POST', {},
+        { Origin: origin, Cookie: `hw_operator_key_session=${sessionToken}`, 'X-Forwarded-For': '203.0.113.88' }))).status).toBe(403);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed answer from Java instead of passing it on', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ code: 'short' }), { status: 200 }));
+      expect((await operatorPhoneLink(request('/api/operator?action=phone-link', 'POST', {}, withSession))).status).toBe(502);
+    });
+
+    it('trades the code on the phone for HttpOnly cookies and never returns a token in JSON', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A', label: 'María',
+      }), { status: 200 }));
+      const response = await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: phoneCode }, guarded));
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(payload).toMatchObject({ stationId, stationName: 'Lavamanos A', label: 'María', stationLinked: false });
+      expect(JSON.stringify(payload)).not.toContain(sessionToken);
+      expect(response.headers.get('set-cookie')).toContain(`hw_operator_key_session=${sessionToken}`);
+      expect(response.headers.get('set-cookie')).toMatch(/HttpOnly/);
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ code: phoneCode });
+    });
+
+    it('refuses a malformed code without calling Java and passes a wrong one back as 401', async () => {
+      expect((await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: 'nope' }, guarded))).status).toBe(400);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'ENLACE_NO_VALIDO' }), { status: 401 }));
+      const response = await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: phoneCode }, guarded));
+      expect(response.status).toBe(401);
+      expect(response.headers.get('set-cookie')).toBeNull();
+    });
   });
 
   it('logout clears the cookie', async () => {

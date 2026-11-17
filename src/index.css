@@ -1119,3 +1119,11 @@
 .operator-camera-panel { display: grid; align-content: start; gap: 12px; }
 .operator-camera-panel .operator-button { justify-self: start; min-height: 44px; }
 .operator-camera-panel .operator-panel-heading { margin: 0; }
+
+/* ---- Operador: dos botones de cámara y QR del celular ---- */
+.operator-camera-actions { display: grid; gap: 10px; }
+.operator-camera-actions .operator-button { justify-self: stretch; justify-content: center; min-height: 48px; }
+.operator-phone-link { display: grid; justify-items: center; gap: 10px; padding: 14px; border: 1px solid #344a54; border-radius: 10px; background: #fff; color: #1b2c33; text-align: center; }
+.operator-phone-link p { margin: 0; font-size: 13px; line-height: 1.5; }
+.qr-image { line-height: 0; max-width: 100%; }
+.qr-image svg { width: 100%; height: auto; }

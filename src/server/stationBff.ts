@@ -187,6 +187,51 @@ export async function operatorKeyLogin(request: Request): Promise<Response> {
   }
 }
 
+/** The signed-in console asks Java for a one-time code that opens the console on a phone (shown as a QR). */
+export async function operatorPhoneLink(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/phone-link', 'POST', {}, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || !isCredential(result.body.code) || typeof result.body.expiresInSeconds !== 'number') {
+      return error(502, 'PHONE_LINK_RESPONSE_INVALID');
+    }
+    return json({ code: result.body.code, expiresInSeconds: result.body.expiresInSeconds });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
+/** The phone trades the one-time code for its own HttpOnly console session; the key itself never reaches it. */
+export async function operatorPhoneLogin(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 10)) return error(429, 'RATE_LIMITED');
+  const body = await readJson(request);
+  if (!body || !isCredential(body.code)) return error(400, 'PHONE_CODE_INVALID');
+  try {
+    const result = await callBackend('/api/v1/operator/phone-login', 'POST', { code: body.code }, undefined,
+      { 'X-Forwarded-For': clientAddress(request) });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || typeof result.body.sessionToken !== 'string'
+      || !KEY_SESSION_PATTERN.test(result.body.sessionToken) || !isUuid(result.body.stationId)
+      || typeof result.body.stationName !== 'string' || typeof result.body.label !== 'string'
+      || typeof result.body.expiresAtEpochMs !== 'number') {
+      return error(502, 'PHONE_LOGIN_RESPONSE_INVALID');
+    }
+    const maxAge = Math.max(1, Math.min(43_200, Math.floor((result.body.expiresAtEpochMs - Date.now()) / 1000)));
+    return json({ stationId: result.body.stationId, stationName: result.body.stationName, label: result.body.label,
+      expiresAtEpochMs: result.body.expiresAtEpochMs, stationLinked: false, macAlreadyLinked: false }, 200,
+    [`${OPERATOR_KEY_COOKIE}=${result.body.sessionToken}; Path=${OPERATOR_COOKIE_PATH}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`]);
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 export async function operatorKeyLogout(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);
   if (securityError) return securityError;
