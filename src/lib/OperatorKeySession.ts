@@ -14,6 +14,15 @@ export interface KeyLoginProfile {
   macAlreadyLinked: boolean;
 }
 
+const PHONE_CODE = /^[A-Za-z0-9_-]{40,64}$/;
+
+/** The one-time code in a QR link such as #/operator?phone=CODE; null for any other hash. */
+export function phoneCodeFromHash(hash: string): string | null {
+  if (!hash.startsWith('#/operator?')) return null;
+  const code = new URLSearchParams(hash.slice('#/operator?'.length)).get('phone');
+  return code !== null && PHONE_CODE.test(code) ? code : null;
+}
+
 /** The "this is the Mac" box starts ticked only when this browser has no station yet. */
 export function defaultLinkMac(browserHasStation: boolean): boolean {
   return !browserHasStation;
@@ -58,6 +67,29 @@ export class OperatorKeySession {
       expiresAtEpochMs: typeof payload.expiresAtEpochMs === 'number' ? payload.expiresAtEpochMs : 0,
       stationLinked: payload.stationLinked === true,
       macAlreadyLinked: payload.macAlreadyLinked === true,
+    };
+  }
+
+  /** A phone opened by QR: the one-time code is traded for this device's own console session; no key is typed. */
+  async loginWithPhoneCode(code: string): Promise<KeyLoginProfile> {
+    if (!PHONE_CODE.test(code)) throw new Error('El enlace del celular no es válido. Genera otro código en el Mac.');
+    const response = await fetch('/api/operator?action=phone-login', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfToken() },
+      body: JSON.stringify({ code }),
+    });
+    const payload = await readPayload(response);
+    if (response.status === 401) throw new Error('El código del celular venció o ya se usó. Genera uno nuevo en el Mac.');
+    if (response.status === 429) throw new Error('Demasiados intentos. Espera un momento.');
+    if (!response.ok || typeof payload.stationId !== 'string' || typeof payload.stationName !== 'string') {
+      throw new Error('No se pudo abrir la consola en este celular. Genera otro código e inténtalo de nuevo.');
+    }
+    try { window.sessionStorage.setItem(FLAG, '1'); } catch { /* the cookie still works */ }
+    return {
+      stationId: payload.stationId, stationName: payload.stationName,
+      label: typeof payload.label === 'string' ? payload.label : '',
+      expiresAtEpochMs: typeof payload.expiresAtEpochMs === 'number' ? payload.expiresAtEpochMs : 0,
+      stationLinked: false, macAlreadyLinked: false,
     };
   }
 

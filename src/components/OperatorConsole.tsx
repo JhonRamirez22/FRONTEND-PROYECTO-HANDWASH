@@ -4,9 +4,9 @@ import { localAdminAuth, operatorAuth, operatorHasOwnPool } from '@/lib/adminAut
 import { RehearsalPanel } from './RehearsalPanel';
 import { CameraLinkPanel } from './CameraLinkPanel';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
-import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
+import { KEY_SESSION, OperatorKeySession, defaultLinkMac, phoneCodeFromHash } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
-import { ContinuityBrowserCameraService, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
+import { ContinuityBrowserCameraService, isPhoneLikeDevice, type CameraChoice } from '@/lib/ContinuityBrowserCameraService';
 import { useStationCamera } from '@/hooks/useStationCamera';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useRelaySupervisor } from '@/hooks/useRelaySupervisor';
@@ -46,6 +46,9 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const [cameraChoices, setCameraChoices] = useState<CameraChoice[]>([]);
   const [chosenCamera, setChosenCamera] = useState('');
   const [shift, setShift] = useState<ShiftView | null>(null);
+  const [phoneLink, setPhoneLink] = useState<{ url: string; expiresAt: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const isPhone = isPhoneLikeDevice();
   const videoRef = useRef<HTMLVideoElement>(null);
   const activeSessionId = useSessionStore((state) => state.sessionId);
   const sessionActive = useSessionStore((state) => state.isActive);
@@ -113,6 +116,28 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
     const timer = window.setInterval(() => void run(), 5_000);
     return () => { mounted = false; window.clearInterval(timer); };
   }, [refresh, token]);
+
+  // A phone opened by QR (#/operator?phone=CODE): trade the one-time code for this device's own console session.
+  useEffect(() => {
+    const code = phoneCodeFromHash(window.location.hash);
+    if (!code || keyMode) return;
+    window.history.replaceState(null, '', `${window.location.pathname}#/operator`);
+    setBusy(true);
+    keySession.loginWithPhoneCode(code)
+      .then(() => { setChecking(true); setKeyMode(true); setError(null); })
+      .catch((cause: unknown) => setError(messageOf(cause)))
+      .finally(() => setBusy(false));
+  }, [keyMode]);
+
+  useEffect(() => {
+    if (!phoneLink) return undefined;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= phoneLink.expiresAt) setPhoneLink(null);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [phoneLink]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -206,12 +231,12 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
       const wanted = deviceId ?? ContinuityBrowserCameraService.remembered() ?? undefined;
       let opened: MediaStream;
       try {
-        opened = await ContinuityBrowserCameraService.open(undefined, undefined, { deviceId: wanted });
+        opened = await ContinuityBrowserCameraService.open(undefined, undefined, { deviceId: wanted, waitMs: 30_000 });
       } catch (cause) {
         if (!wanted || deviceId) throw cause;
         // The remembered camera is gone (iPhone away): fall back to automatic detection.
         ContinuityBrowserCameraService.remember(null);
-        opened = await ContinuityBrowserCameraService.open();
+        opened = await ContinuityBrowserCameraService.open(undefined, undefined, { waitMs: 30_000 });
       }
       const track = opened.getVideoTracks()[0];
       const label = track?.label ?? '';
@@ -231,6 +256,32 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
           ? current : (choices.find((c) => c.likelyIphone) ?? choices[0])?.deviceId ?? '');
       } catch { setCameraChoices([]); }
     } finally { setCameraBusy(false); }
+  }
+
+  /** This phone's own camera (any Android or iOS browser): no Continuity involved. */
+  async function linkPhoneCamera() {
+    setCameraError(null);
+    setCameraBusy(true);
+    try {
+      const opened = await ContinuityBrowserCameraService.openPhoneCamera();
+      setStream(opened);
+      setCameraChoices([]);
+    } catch (cause) { setCameraError(messageOf(cause)); }
+    finally { setCameraBusy(false); }
+  }
+
+  /** From a computer: a QR that opens this console on the phone, whose camera then feeds the YOLO PC. */
+  async function showPhoneLink() {
+    const activeToken = currentToken();
+    if (!activeToken) return;
+    setCameraError(null);
+    setCameraBusy(true);
+    try {
+      const link = await operatorApi.phoneLink(activeToken);
+      setPhoneLink({ url: `${window.location.origin}/#/operator?phone=${link.code}`, expiresAt: Date.now() + link.expiresInSeconds * 1_000 });
+      setNow(Date.now());
+    } catch (cause) { setCameraError(messageOf(cause)); }
+    finally { setCameraBusy(false); }
   }
 
   async function startSession() {
@@ -385,7 +436,9 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
 
         <section className="operator-grid">
           <CameraLinkPanel linked={Boolean(stream)} busy={cameraBusy} error={cameraError} choices={cameraChoices}
-            chosen={chosenCamera} onChoose={setChosenCamera} onLink={(deviceId) => void authorizeCamera(deviceId)} videoRef={videoRef} />
+            chosen={chosenCamera} onChoose={setChosenCamera} onLink={(deviceId) => void authorizeCamera(deviceId)} videoRef={videoRef}
+            onLinkIphone={() => void authorizeCamera()} onLinkPhone={() => void (isPhone ? linkPhoneCamera() : showPhoneLink())}
+            isPhone={isPhone} phoneLink={phoneLink ? { url: phoneLink.url, secondsLeft: Math.max(0, Math.ceil((phoneLink.expiresAt - now) / 1_000)) } : null} />
 
           <div className="operator-panel operator-session-panel">
             <div className="operator-panel-heading"><div><p className="operator-eyebrow">Sesión remota</p><h2>Control de detección</h2></div><Activity /></div>
