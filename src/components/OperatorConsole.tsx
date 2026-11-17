@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square, VideoOff } from 'lucide-react';
+import { Activity, Camera, Check, CircleAlert, LoaderCircle, LogOut, Play, ShieldCheck, Square } from 'lucide-react';
 import { localAdminAuth, operatorAuth, operatorHasOwnPool } from '@/lib/adminAuth';
 import { RehearsalPanel } from './RehearsalPanel';
+import { CameraLinkPanel } from './CameraLinkPanel';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, defaultLinkMac } from '@/lib/OperatorKeySession';
 import { StationApi, type PublicStationStatus } from '@/lib/StationApi';
@@ -53,11 +54,11 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
   const { stream, setStream } = useStationCamera();
   const preflight = operatorPreflight({
     assigned: Boolean(status),
-    macLinked: Boolean(status && station?.registered && station.stationId === status.grant.stationId),
     cameraLive: Boolean(stream?.getVideoTracks().some((track) => track.readyState === 'live')),
     shiftActive: Boolean(shift?.active),
   });
-  const relayedSession = status && station?.stationId === status.grant.stationId && sessionActive ? activeSessionId : null;
+  // Any device the operator links a camera on may publish it: the operator grant authorizes the session ticket.
+  const relayedSession = status && sessionActive ? activeSessionId : null;
   const { state: relayState, telemetry } = useRelaySupervisor(relayedSession, stream);
   const { connect, disconnect } = useWebSocket(async (sessionId) => {
     const activeToken = currentToken();
@@ -360,7 +361,7 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
         </section>
       )}
 
-      {(!station?.registered || (status && station.stationId !== status.grant.stationId)) && (
+      {!keyMode && (!station?.registered || (status && station.stationId !== status.grant.stationId)) && (
         <section className="operator-panel operator-panel--commission" aria-labelledby="commission-title">
           <div className="operator-panel-heading"><div><p className="operator-eyebrow">Configuración física</p><h2 id="commission-title">Registrar este equipo</h2></div><Camera /></div>
           <p>En el Mac conectado a Continuity, pega el enlace o token de activación que ADMIN te dio al crear el puesto (o abre el enlace directamente). Este registro es independiente de tu acceso personal.</p>
@@ -378,42 +379,13 @@ export function OperatorConsole({ authError, onSignedOut }: OperatorConsoleProps
         </section>
       )}
 
-      {status && station?.stationId === status.grant.stationId && <>
+      {status && <>
         <section className="operator-station-banner"><div><p className="operator-eyebrow">Puesto asignado</p><h2>{status.grant.stationName}</h2>
           <code>{status.grant.stationId}</code></div><span className="operator-pill is-connected"><span /> Java autorizado</span></section>
 
         <section className="operator-grid">
-          <div className="operator-panel operator-camera-panel">
-            <div className="operator-panel-heading"><div><p className="operator-eyebrow">Solo configuración local</p><h2>Cámara Continuity</h2></div>
-              {stream ? <Check className="operator-ok" /> : <VideoOff className="operator-muted" />}</div>
-            <p>Autoriza la cámara principal del iPhone desde el Mac que funciona como puesto. La consola remota no puede seleccionar el hardware de ese Mac.</p>
-            {stream ? <video ref={videoRef} className="operator-camera-preview" autoPlay muted playsInline aria-label="Vista previa local de Continuity" /> :
-              <div className="operator-camera-empty"><Camera size={25} /><span>Cámara local sin autorizar</span></div>}
-            {cameraError && <p className="operator-error" role="alert">{cameraError}</p>}
-            {cameraChoices.length > 0 && (
-              <label className="operator-field-label">
-                <span>Cámara disponible en este Mac</span>
-                <select style={{ display: 'block', width: '100%', marginTop: 6, padding: 8 }} value={chosenCamera} onChange={(event) => setChosenCamera(event.target.value)}>
-                  {cameraChoices.map((choice) => (
-                    <option key={choice.deviceId} value={choice.deviceId}>
-                      {choice.label}{choice.likelyIphone ? ' (iPhone)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {cameraChoices.length > 0 && (
-              <button className="operator-button operator-button--secondary" type="button"
-                disabled={cameraBusy || !chosenCamera} onClick={() => void authorizeCamera(chosenCamera)}>
-                <Camera size={16} /> Usar esta cámara
-              </button>
-            )}
-            <button className="operator-button operator-button--secondary" type="button"
-              disabled={cameraBusy} onClick={() => void authorizeCamera()}>
-              <Camera size={16} /> {cameraBusy ? 'Buscando cámara del iPhone…'
-                : cameraChoices.length > 0 ? 'Buscar de nuevo' : stream ? 'Volver a autorizar cámara' : 'Autorizar en este Mac'}
-            </button>
-          </div>
+          <CameraLinkPanel linked={Boolean(stream)} busy={cameraBusy} error={cameraError} choices={cameraChoices}
+            chosen={chosenCamera} onChoose={setChosenCamera} onLink={(deviceId) => void authorizeCamera(deviceId)} videoRef={videoRef} />
 
           <div className="operator-panel operator-session-panel">
             <div className="operator-panel-heading"><div><p className="operator-eyebrow">Sesión remota</p><h2>Control de detección</h2></div><Activity /></div>

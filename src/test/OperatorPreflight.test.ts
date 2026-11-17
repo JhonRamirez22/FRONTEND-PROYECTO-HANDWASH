@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { operatorPreflight } from '@/lib/OperatorPreflight';
 import { cognitoOperatorPoolRoles } from '@/lib/CognitoAdminAuthService';
 
-const base = { assigned: true, macLinked: true, cameraLive: true, shiftActive: false };
+const base = { assigned: true, cameraLive: true, shiftActive: false };
 
 function token(claims: Record<string, unknown>): string {
   const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -11,13 +11,12 @@ function token(claims: Record<string, unknown>): string {
 
 describe('operatorPreflight', () => {
   it('names the first missing piece in a fixed order', () => {
-    expect(operatorPreflight({ ...base, assigned: false, macLinked: false }).message).toContain('asignada');
-    expect(operatorPreflight({ ...base, macLinked: false, cameraLive: false }).message).toContain('enlazar este Mac');
-    expect(operatorPreflight({ ...base, cameraLive: false }).message).toContain('cámara del iPhone');
+    expect(operatorPreflight({ ...base, assigned: false, cameraLive: false }).message).toContain('asignada');
+    expect(operatorPreflight({ ...base, cameraLive: false }).message).toContain('vincular una cámara');
     expect(operatorPreflight({ ...base, cameraLive: false }).ready).toBe(false);
   });
 
-  it('is ready once account, Mac and camera are in place', () => {
+  it('is ready once the account and a linked camera are in place', () => {
     expect(operatorPreflight(base)).toMatchObject({ ready: true });
     expect(operatorPreflight({ ...base, shiftActive: true }).message).toContain('Turno activo');
   });

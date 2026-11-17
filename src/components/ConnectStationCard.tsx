@@ -42,7 +42,7 @@ export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCar
       <div className="admin-section-header">
         <div className="admin-section-title"><Plus className="h-4 w-4" /><h2 id="connect-station-title">Conectar un puesto</h2></div>
       </div>
-      <p className="admin-data-footnote">Escribe el nombre del lavamanos. Te damos una sola key que sirve para el Mac del puesto y para el PC con YOLO.</p>
+      <p className="admin-data-footnote">Escribe el nombre del lavamanos. Te damos la key para el Mac del puesto; el PC con YOLO se conecta solo, sin key.</p>
 
       <form className="station-code-form" onSubmit={(event) => void submit(event)}>
         <div>
@@ -66,8 +66,8 @@ export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCar
         </div>
         {notice && <p className="station-admin-notice">{notice}</p>}
         <ol className="connect-station-steps">
-          <li><strong>En el PC con YOLO:</strong> abre <code>INICIAR-HANDWASH</code> y pega la key cuando la pida. Déjalo encendido y se conecta solo.</li>
-          <li><strong>En el Mac del lavamanos:</strong> abre <a href={operatorUrl}>{operatorUrl}</a> y pega la misma key.</li>
+          <li><strong>En el PC con YOLO:</strong> ejecuta <code>INICIAR-HANDWASH</code>. Muestra un código; apruébalo abajo en “PCs esperando”. Después se conecta solo.</li>
+          <li><strong>En el Mac del lavamanos:</strong> abre <a href={operatorUrl}>{operatorUrl}</a>, pega esta key y pulsa “Vincular cámara”.</li>
         </ol>
         <button className="button-quiet" type="button" onClick={() => { setConnected(null); setNotice(null); }}>
           <Check className="h-4 w-4" />Ya la guardé

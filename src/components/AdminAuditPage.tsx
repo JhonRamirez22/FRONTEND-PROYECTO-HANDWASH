@@ -9,6 +9,7 @@ import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { AdminApiKeysPanel } from './AdminApiKeysPanel';
 import { ConnectStationCard } from './ConnectStationCard';
+import { PendingPcsPanel } from './PendingPcsPanel';
 import { connectStation } from '../lib/connectStation';
 import { AdminWashReports } from './AdminWashReports';
 import { AdminAuditChainPanel } from './AdminAuditChainPanel';
@@ -26,6 +27,12 @@ interface AdminAuditPageProps {
 }
 
 type ViewState = 'checking' | 'unconfigured' | 'signed-out' | 'forbidden' | 'loading' | 'ready' | 'error';
+
+function adminToken(): string {
+  const token = cognitoAdminAuth.getAccessToken();
+  if (!token) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
+  return token;
+}
 
 export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
   const [view, setView] = useState<ViewState>('checking');
@@ -222,6 +229,12 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
             if (!token) { signOut(); throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.'); }
             return connectStation(auditApi, token, name);
           }} />}
+
+        {view === 'ready' && <PendingPcsPanel
+          loadPending={async () => auditApi.producerEnrollments(adminToken())}
+          loadStations={async () => (await auditApi.stations(adminToken())).filter((station) => station.revokedAtEpochMs === null)}
+          approve={async (userCode, stationId) => auditApi.approveProducerEnrollment(adminToken(), userCode, stationId)}
+          reject={async (userCode) => auditApi.rejectProducerEnrollment(adminToken(), userCode)} />}
 
         {view === 'ready' && <details className="admin-advanced">
           <summary>Avanzado: reportes, auditoría, puestos y keys</summary>
