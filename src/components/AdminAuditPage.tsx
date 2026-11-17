@@ -8,6 +8,8 @@ import { AdminAuditApi, type EncounterAuditRecord, type FailedAttemptAuditRecord
 import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { AdminApiKeysPanel } from './AdminApiKeysPanel';
+import { ConnectStationCard } from './ConnectStationCard';
+import { connectStation } from '../lib/connectStation';
 import { AdminWashReports } from './AdminWashReports';
 import { AdminAuditChainPanel } from './AdminAuditChainPanel';
 import { AdminChangeControlPanel } from './AdminChangeControlPanel';
@@ -214,13 +216,23 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
           </div>
         </section>
 
-        {view === 'ready' && <AdminWashTrends onSignOut={signOut} />}
-        {view === 'ready' && <AdminWashReports onSignOut={signOut} />}
-        {view === 'ready' && <AdminAuditChainPanel onSignOut={signOut} />}
-        {view === 'ready' && <AdminChangeControlPanel onSignOut={signOut} />}
-        {view === 'ready' && <AdminStationRegistry onSignOut={signOut} />}
-        {view === 'ready' && <AdminApiKeysPanel onSignOut={signOut} />}
-        {view === 'ready' && <AdminOperatorAccess />}
+        {view === 'ready' && <ConnectStationCard operatorUrl={`${window.location.origin}/#/operator`}
+          onConnect={async (name) => {
+            const token = cognitoAdminAuth.getAccessToken();
+            if (!token) { signOut(); throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.'); }
+            return connectStation(auditApi, token, name);
+          }} />}
+
+        {view === 'ready' && <details className="admin-advanced">
+          <summary>Avanzado: reportes, auditoría, puestos y keys</summary>
+          <AdminWashTrends onSignOut={signOut} />
+          <AdminWashReports onSignOut={signOut} />
+          <AdminAuditChainPanel onSignOut={signOut} />
+          <AdminChangeControlPanel onSignOut={signOut} />
+          <AdminStationRegistry onSignOut={signOut} />
+          <AdminApiKeysPanel onSignOut={signOut} />
+          <AdminOperatorAccess />
+        </details>}
 
         {view === 'ready' && (
           <div className="audit-filter-row" role="search" aria-label="Filtrar encuentros">

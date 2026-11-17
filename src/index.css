@@ -1067,3 +1067,38 @@
 .trend-omitted { list-style: none; margin: 0; padding: 4px 18px 12px; display: grid; gap: 6px; font-size: 12px; }
 .trend-omitted li { display: grid; grid-template-columns: minmax(120px, 220px) 1fr auto; align-items: center; gap: 10px; }
 .trend-omitted .trend-bar { width: 100%; margin: 0; }
+
+/* ---- ADMIN: conectar un puesto, sección Avanzado y enrolamiento TOTP ---- */
+.connect-station .station-code-form { border-bottom: 0; }
+.connect-station-message { margin: 0 18px 14px; }
+.connect-station-result { display: grid; gap: 10px; margin: 0 18px 18px; padding: 16px; border: 1px solid #b8d8d3; border-radius: 10px; background: #f3faf8; }
+.connect-station-result h3 { margin: 0; color: var(--hw-petroleum); font-size: 15px; font-weight: 700; line-height: 1.3; }
+.connect-station-warning { margin: 0; color: var(--hw-warning-ink); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.connect-station-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.connect-station-key code { flex: 1 1 320px; min-width: 0; padding: 10px 11px; border: 1px solid var(--hw-border); border-radius: 8px; background: #fff; color: var(--hw-ink); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.connect-station-steps { list-style: decimal; display: grid; gap: 8px; margin: 2px 0 0; padding-left: 20px; color: var(--hw-ink); font-size: 13px; line-height: 1.55; }
+.connect-station-steps code { padding: 1px 5px; border-radius: 5px; background: #fff; font-size: 12px; }
+.connect-station-steps a { color: var(--hw-action, #0d6669); font-weight: 600; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.connect-station-result .button-quiet { justify-self: start; min-height: 44px; }
+
+.admin-advanced { margin-top: 14px; }
+.admin-advanced > summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--hw-border); border-radius: 10px; background: #fff; color: var(--hw-petroleum); font-size: 13px; font-weight: 650; cursor: pointer; }
+.admin-advanced > summary:focus-visible { outline: 3px solid #0d6669; outline-offset: 2px; }
+.admin-advanced[open] > summary { margin-bottom: 14px; }
+
+.access-form { display: grid; gap: 6px; margin-top: 4px; }
+.access-form label { margin-top: 8px; color: var(--hw-petroleum); font-size: 12px; font-weight: 650; }
+.access-form input { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #a3b8b5; border-radius: 9px; background: #fff; color: var(--hw-ink); font-size: 14px; }
+.access-form input:focus-visible { outline: 3px solid #0d6669; outline-offset: 1px; }
+
+.totp-enrollment { display: grid; gap: 10px; margin: 8px 0 4px; padding: 14px; border: 1px solid var(--hw-border); border-radius: 10px; background: #fff; color: var(--hw-ink); font-size: 12px; line-height: 1.5; }
+.totp-enrollment strong { color: var(--hw-petroleum); font-size: 13px; }
+.totp-enrollment p { margin: 0; }
+.totp-qr { width: 192px; max-width: 100%; justify-self: center; line-height: 0; }
+.totp-qr svg { width: 100%; height: auto; }
+.totp-enrollment summary { cursor: pointer; min-height: 32px; color: var(--hw-petroleum); font-weight: 600; }
+.totp-enrollment code { display: block; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--hw-border); border-radius: 8px; background: #f3f8f7; font-size: 13px; letter-spacing: 0.04em; overflow-wrap: anywhere; user-select: all; }
+@media (max-width: 560px) {
+  .connect-station-result { margin: 0 12px 14px; padding: 13px; }
+  .connect-station-message { margin: 0 12px 12px; }
+}
