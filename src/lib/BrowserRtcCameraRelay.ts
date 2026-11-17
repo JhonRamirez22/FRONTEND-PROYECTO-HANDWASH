@@ -1,5 +1,5 @@
 import { RuntimeEndpointConfig } from './RuntimeEndpointConfig';
-import { stationApi } from './StationApi';
+import { stationApi, type WebRtcAccess } from './StationApi';
 
 /** 'reconnecting' is emitted only by RelaySupervisor, between a failure and the next attempt. */
 export type CameraRelayState = 'connecting' | 'waiting-peer' | 'connected' | 'disconnected' | 'failed' | 'reconnecting';
@@ -43,10 +43,13 @@ export function parseProducerTelemetry(value: unknown): ProducerTelemetry | null
 
 /** Sends only the browser's live video track to the authenticated RTX peer; it never records media. */
 export class BrowserRtcCameraRelay {
+  /** Where the ticket comes from: the station by default, the operator console when a phone or Mac without a station publishes. */
+  constructor(private readonly access: (sessionId: string) => Promise<WebRtcAccess> = (id) => stationApi.webrtcAccess(id)) {}
+
   async connect(sessionId: string, stream: MediaStream,
     onState: (state: CameraRelayState) => void, signal?: AbortSignal,
     onTelemetry?: (status: ProducerTelemetry | null) => void): Promise<() => void> {
-    const { ticket, iceServers } = await stationApi.webrtcAccess(sessionId);
+    const { ticket, iceServers } = await this.access(sessionId);
     if (signal?.aborted) throw new DOMException('Enlace WebRTC cancelado', 'AbortError');
     const wsBase = new URL(RuntimeEndpointConfig.websocketBaseUrl(), window.location.origin);
     wsBase.protocol = wsBase.protocol === 'https:' ? 'wss:' : 'ws:';

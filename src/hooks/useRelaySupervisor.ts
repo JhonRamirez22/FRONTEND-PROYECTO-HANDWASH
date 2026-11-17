@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { BrowserRtcCameraRelay, type CameraRelayState, type ProducerTelemetry } from '@/lib/BrowserRtcCameraRelay';
 import { RelaySupervisor } from '@/lib/RelaySupervisor';
 
-const supervisor = new RelaySupervisor(new BrowserRtcCameraRelay());
+import { OperatorApi } from '@/lib/OperatorApi';
+import { KEY_SESSION } from '@/lib/OperatorKeySession';
+import { operatorAuth } from '@/lib/adminAuth';
+
+const stationSupervisor = new RelaySupervisor(new BrowserRtcCameraRelay());
+const operatorApi = new OperatorApi();
+/** The operator console: any device the operator signs in on may publish the camera, with no station credential. */
+const operatorSupervisor = new RelaySupervisor(new BrowserRtcCameraRelay(
+  (sessionId) => operatorApi.webrtcAccess(operatorAuth.getAccessToken() ?? KEY_SESSION, sessionId)));
 export const TELEMETRY_STALE_MS = 10_000;
 const CHECK_INTERVAL_MS = 2_000;
 
@@ -17,7 +25,9 @@ export interface SupervisedRelay {
 }
 
 /** One supervised relay per session and camera stream; null inputs mean "nothing to relay". */
-export function useRelaySupervisor(sessionId: string | null, stream: MediaStream | null): SupervisedRelay {
+export function useRelaySupervisor(sessionId: string | null, stream: MediaStream | null,
+  mode: 'station' | 'operator' = 'station'): SupervisedRelay {
+  const supervisor = mode === 'operator' ? operatorSupervisor : stationSupervisor;
   const [state, setState] = useState<CameraRelayState | 'idle'>('idle');
   const [attempt, setAttempt] = useState(0);
   const [telemetry, setTelemetry] = useState<ProducerTelemetry | null>(null);
@@ -71,7 +81,7 @@ export function useRelaySupervisor(sessionId: string | null, stream: MediaStream
       window.clearInterval(timer);
       stop();
     };
-  }, [sessionId, stream]);
+  }, [sessionId, stream, supervisor]);
 
   return { state, attempt, telemetry, stalledMs, telemetryStale };
 }

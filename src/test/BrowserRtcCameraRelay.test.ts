@@ -35,6 +35,23 @@ class FakePeer {
 describe('browser WebRTC signaling', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('gets its ticket from the injected provider (the operator console) instead of the station', async () => {
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal('RTCPeerConnection', FakePeer);
+    const access = vi.fn(async () => ({ ticket: 'o'.repeat(43), iceServers: [{ urls: ['stun:stun.example:19302'] }] as RTCIceServer[] }));
+    const stream = { getVideoTracks: () => [{ readyState: 'live' }] } as unknown as MediaStream;
+    vi.mocked(stationApi.webrtcAccess).mockClear();
+
+    const connecting = new BrowserRtcCameraRelay(access).connect('session-9', stream, () => {});
+    await vi.waitFor(() => expect(FakeSocket.last?.onopen).toBeTypeOf('function'));
+    FakeSocket.last.open();
+    const release = await connecting;
+
+    expect(access).toHaveBeenCalledWith('session-9');
+    expect(stationApi.webrtcAccess).not.toHaveBeenCalled();
+    release();
+  });
+
   it('relays trickled ICE but never sends the null end-of-gathering candidate Java rejects', async () => {
     vi.stubGlobal('WebSocket', FakeSocket);
     vi.stubGlobal('RTCPeerConnection', FakePeer);

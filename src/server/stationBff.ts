@@ -187,6 +187,32 @@ export async function operatorKeyLogin(request: Request): Promise<Response> {
   }
 }
 
+/** Ticket for the operator's own device (browser on a Mac or phone, or the native iPhone helper) to publish the camera. */
+export async function operatorWebrtcTicket(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 24)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  const body = await readJson(request);
+  if (!body || !isUuid(body.sessionId)) return error(400, 'SESSION_ID_INVALID');
+  try {
+    const result = await callBackend(`/api/v1/operator/sessions/${body.sessionId}/webrtc-ticket`, 'POST',
+      undefined, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || typeof result.body.ticket !== 'string' || result.body.ticket.length < 32
+      || result.body.peerRole !== 'BROWSER' || typeof result.body.expiresAt !== 'string'
+      || !Number.isFinite(Date.parse(result.body.expiresAt))) {
+      return error(502, 'WEBRTC_TICKET_INVALID');
+    }
+    const iceServers = result.body.iceServers === undefined ? [] : sanitizeIceServers(result.body.iceServers);
+    if (iceServers === null) return error(502, 'WEBRTC_TICKET_INVALID');
+    return json({ ticket: result.body.ticket, expiresAt: result.body.expiresAt, iceServers });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 /** The signed-in console asks Java for a one-time code that opens the console on a phone (shown as a QR). */
 export async function operatorPhoneLink(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);

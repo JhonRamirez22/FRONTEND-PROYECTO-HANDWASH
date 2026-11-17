@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
+  csrf, enroll, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorWebrtcTicket, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -593,6 +593,41 @@ describe('operator API key session through the BFF', () => {
     expect(response.status).toBe(200);
     const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`KeySession ${sessionToken}`);
+  });
+
+  describe('operator WebRTC ticket (any device of the operator can publish the camera)', () => {
+    const ticket = 'T'.repeat(43);
+    const withSession = { ...guarded, Cookie: `hw_station_csrf=${csrfToken}; hw_operator_key_session=${sessionToken}` };
+    const sessionId = '11111111-1111-4111-8111-111111111111';
+
+    it('asks Java with the operator session and returns only the ticket and sanitized ICE servers', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+        ticket, peerRole: 'BROWSER', expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        iceServers: [{ urls: ['stun:stun.example:19302'] }, { urls: ['turn:1.2.3.4:3478?transport=udp'], username: 'u', credential: 'c' }],
+      }), { status: 200 }));
+      const response = await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId }, withSession));
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(payload.ticket).toBe(ticket);
+      expect((payload.iceServers as unknown[]).length).toBe(2);
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe(`https://java.example.com/api/v1/operator/sessions/${sessionId}/webrtc-ticket`);
+      const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe(`KeySession ${sessionToken}`);
+    });
+
+    it('needs a signed-in console, a session id and the usual origin and CSRF protection', async () => {
+      expect((await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId }, guarded))).status).toBe(401);
+      expect((await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId: 'nope' }, withSession))).status).toBe(400);
+      expect((await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId },
+        { Origin: origin, Cookie: `hw_operator_key_session=${sessionToken}`, 'X-Forwarded-For': '203.0.113.88' }))).status).toBe(403);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it('rejects a ticket for the wrong peer role or a malformed answer', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ticket, peerRole: 'RTX_PRODUCER', expiresAt: new Date().toISOString() }), { status: 200 }));
+      expect((await operatorWebrtcTicket(request('/api/operator?action=webrtc-ticket', 'POST', { sessionId }, withSession))).status).toBe(502);
+    });
   });
 
   describe('phone link (open the console on a phone by QR)', () => {

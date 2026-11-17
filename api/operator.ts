@@ -11,6 +11,7 @@ import {
   operatorStatus,
   operatorStepFeedback,
   operatorStopSession,
+  operatorWebrtcTicket,
   operatorTicket,
 } from '../src/server/stationBff.js';
 
@@ -30,6 +31,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   'shift-stop': { POST: operatorShiftStop },
   stop: { POST: operatorStopSession },
   ticket: { POST: operatorTicket },
+  'webrtc-ticket': { POST: operatorWebrtcTicket },
 };
 
 function dispatch(request: Request, method: Method): Promise<Response> {

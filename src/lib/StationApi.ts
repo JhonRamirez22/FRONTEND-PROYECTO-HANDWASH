@@ -23,7 +23,7 @@ export interface WebRtcAccess {
   iceServers: RTCIceServer[];
 }
 
-function parseIceServers(value: unknown): RTCIceServer[] {
+export function parseIceServers(value: unknown): RTCIceServer[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry): RTCIceServer[] => {
     if (typeof entry !== 'object' || entry === null || !Array.isArray((entry as { urls?: unknown }).urls)) return [];
