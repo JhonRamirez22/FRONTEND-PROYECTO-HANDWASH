@@ -1102,3 +1102,20 @@
   .connect-station-result { margin: 0 12px 14px; padding: 13px; }
   .connect-station-message { margin: 0 12px 12px; }
 }
+
+/* ---- ADMIN: PCs esperando aprobación ---- */
+.pending-pcs-message { margin: 0 18px 12px; }
+.pending-pcs-list { display: grid; gap: 10px; margin: 0; padding: 0 18px 18px; list-style: none; }
+.pending-pcs-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px; border: 1px solid var(--hw-border); border-radius: 10px; background: #fff; }
+.pending-pcs-id { display: grid; gap: 2px; min-width: 160px; flex: 1 1 200px; }
+.pending-pcs-id span { color: var(--hw-muted); font-size: 12px; }
+.pending-pcs .pending-pcs-code { padding: 0; background: none; color: var(--hw-petroleum); font-size: 20px; font-weight: 700; letter-spacing: 0.08em; user-select: all; }
+.pending-pcs-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.pending-pcs-list select { min-height: 44px; padding: 0 10px; border: 1px solid #a3b8b5; border-radius: 9px; background: #fff; color: var(--hw-ink); font-size: 13px; }
+.pending-pcs-list .button-primary, .pending-pcs-list .button-quiet { min-height: 44px; }
+.pending-pcs .admin-data-footnote code { padding: 1px 5px; border-radius: 5px; background: #eef4f2; font-size: 12px; }
+.operator-select { display: block; width: 100%; margin-top: 6px; min-height: 44px; padding: 0 10px; border: 1px solid #344a54; border-radius: 9px; background: #17252d; color: #edf5f4; font-size: 13px; }
+
+.operator-camera-panel { display: grid; align-content: start; gap: 12px; }
+.operator-camera-panel .operator-button { justify-self: start; min-height: 44px; }
+.operator-camera-panel .operator-panel-heading { margin: 0; }

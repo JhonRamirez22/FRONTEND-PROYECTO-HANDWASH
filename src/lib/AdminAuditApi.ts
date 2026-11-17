@@ -342,6 +342,18 @@ export class AdminAuditApi {
     return this.request('/api/v1/admin/api-keys', token, undefined, 'POST', request);
   }
 
+  async producerEnrollments(token: string): Promise<{ userCode: string; deviceName: string; address: string; ageSeconds: number }[]> {
+    return this.request('/api/v1/admin/producer-enrollments', token);
+  }
+
+  async approveProducerEnrollment(token: string, userCode: string, stationId: string): Promise<void> {
+    await this.request(`/api/v1/admin/producer-enrollments/${encodeURIComponent(userCode)}/approve`, token, undefined, 'POST', { stationId });
+  }
+
+  async rejectProducerEnrollment(token: string, userCode: string): Promise<void> {
+    await this.request(`/api/v1/admin/producer-enrollments/${encodeURIComponent(userCode)}`, token, undefined, 'DELETE');
+  }
+
   async revokeApiKey(token: string, keyId: string): Promise<void> {
     await this.request(`/api/v1/admin/api-keys/${encodeURIComponent(keyId)}`, token, undefined, 'DELETE');
   }

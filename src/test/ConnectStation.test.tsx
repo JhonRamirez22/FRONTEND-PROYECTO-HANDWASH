@@ -9,19 +9,19 @@ const KEY = `hwk_0123456789abcdef_${'A'.repeat(43)}`;
 function fakeApi(overrides: Record<string, unknown> = {}) {
   return {
     provisionStation: vi.fn(async () => ({ stationId: 'st-1', stationName: 'Lavamanos A' })),
-    createApiKey: vi.fn(async () => ({ keyId: '0123456789abcdef', key: KEY, stationId: 'st-1', label: 'Lavamanos A', scopes: ['CONSOLE', 'PRODUCER'] })),
+    createApiKey: vi.fn(async () => ({ keyId: '0123456789abcdef', key: KEY, stationId: 'st-1', label: 'Lavamanos A', scopes: ['CONSOLE'] })),
     ...overrides,
   };
 }
 
 describe('connectStation', () => {
-  it('creates the station and one key that serves the Mac console and the YOLO PC', async () => {
+  it('creates the station and the operator key for its Mac (the PC pairs itself)', async () => {
     const api = fakeApi();
 
     const result = await connectStation(api as never, 'admin-token', '  Lavamanos A ');
 
     expect(api.provisionStation).toHaveBeenCalledWith('admin-token', { stationName: 'Lavamanos A', producerClientId: '', operatorEmails: [] });
-    expect(api.createApiKey).toHaveBeenCalledWith('admin-token', { stationId: 'st-1', label: 'Lavamanos A', scopes: ['CONSOLE', 'PRODUCER'] });
+    expect(api.createApiKey).toHaveBeenCalledWith('admin-token', { stationId: 'st-1', label: 'Lavamanos A', scopes: ['CONSOLE'] });
     expect(result).toEqual({ stationName: 'Lavamanos A', key: KEY });
   });
 
@@ -52,6 +52,7 @@ describe('ConnectStationCard', () => {
     expect(await screen.findByText(KEY)).toBeTruthy();
     expect(screen.getByText(/solo se muestra una vez/i)).toBeTruthy();
     expect(screen.getByText(/En el PC con YOLO/)).toBeTruthy();
+    expect(screen.getByText(/PCs esperando/)).toBeTruthy();
     expect(screen.getByText(/En el Mac del lavamanos/)).toBeTruthy();
     expect(screen.getByRole('link', { name: /https:\/\/frontend\.example\/#\/operator/ })).toBeTruthy();
   });
