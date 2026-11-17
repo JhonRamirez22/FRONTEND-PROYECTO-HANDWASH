@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { FRICTION_STEPS, STEP_LABELS, WHO_STEPS } from '@/types';
 import { formatSeconds } from '@/lib/KioskGuideCatalog';
+import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
 import { KioskGuidance } from './KioskGuidance';
 import { KioskWashSummary } from './KioskWashSummary';
 
@@ -17,6 +18,7 @@ export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
   const evaluation = useSessionStore((state) => state.frictionEvaluation);
   const steps = mode === 'PROTOCOLO_OMS' ? WHO_STEPS : FRICTION_STEPS;
   const currentIndex = steps.indexOf(current as typeof steps[number]);
+  const inEvaluation = mode === 'PROTOCOLO_OMS' ? [] : RuntimeEndpointConfig.stepsInEvaluation();
 
   return (
     <section className="kiosk-progress" aria-label="Progreso confirmado por Java">
@@ -50,6 +52,7 @@ export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
               </span>
               <span className="kiosk-step-copy">
                 <span className="kiosk-step-label">{STEP_LABELS[step] ?? step}</span>
+                {inEvaluation.includes(index + 1) && <small className="kiosk-step-evaluation">En evaluación</small>}
                 {currentStep && <small>{assessment?.estado === 'REQUIERE_REPETICION' ? 'Corrección pendiente' : 'En curso'} · Java</small>}
                 {observed && <small>{assessment ? 'Validado' : 'Observado'} · Java</small>}
                 {assessment && assessment.estado !== 'PENDIENTE'

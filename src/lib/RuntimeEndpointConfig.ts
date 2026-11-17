@@ -33,6 +33,14 @@ export class RuntimeEndpointConfig {
     };
   }
 
+  /** Friction steps (1-6) the pilot still labels "En evaluación" on the kiosk; informational, Java decides. */
+  static stepsInEvaluation(): number[] {
+    const raw = import.meta.env.VITE_STEPS_IN_EVALUATION?.trim() ?? '';
+    const steps = raw.split(',').map((part) => part.trim())
+      .filter((part) => /^[1-6]$/.test(part)).map(Number);
+    return [...new Set(steps)];
+  }
+
   static apiBaseUrl(): string {
     const configured = import.meta.env.VITE_API_URL?.trim();
     if (configured) return this.withoutTrailingSlash(configured);
