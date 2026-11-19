@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { LoaderCircle, Play, Square } from 'lucide-react';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, phoneCodeFromHash } from '@/lib/OperatorKeySession';
@@ -24,6 +24,23 @@ function HealthItem({ label, state, detail }: { label: string; state: Health; de
   );
 }
 
+/**
+ * The annotated frame. It lives in its own component so that ~15 new images per second repaint only this <img>:
+ * the panel around it re-renders only when "is it live" changes.
+ */
+const PreviewImage = memo(function PreviewImage({ sessionId, getTicket, onLive, empty }: {
+  sessionId: string | null;
+  getTicket: (sessionId: string) => Promise<string>;
+  onLive: (live: boolean) => void;
+  empty: ReactNode;
+}) {
+  const { url, live } = usePreviewStream(sessionId, getTicket);
+  useEffect(() => { onLive(live); }, [live, onLive]);
+  return url && live ? <img src={url} alt="Cámara con las manos encuadradas" decoding="async" /> : <>{empty}</>;
+});
+
+const previewTicket = (id: string) => operatorApi.websocketTicket(KEY_SESSION, id);
+
 /** What the professor opens from the ADMIN link: start the camera, scan the QR, watch the boxes and the steps. */
 export function LivePanel() {
   const [keyMode, setKeyMode] = useState(keySession.isActive());
@@ -35,7 +52,7 @@ export function LivePanel() {
   const sessionId = useSessionStore((state) => state.sessionId);
   const active = useSessionStore((state) => state.isActive);
   const { connect, disconnect } = useWebSocket(async (id) => operatorApi.websocketTicket(KEY_SESSION, id));
-  const preview = usePreviewStream(active ? sessionId : null, (id) => operatorApi.websocketTicket(KEY_SESSION, id));
+  const [previewLive, setPreviewLive] = useState(false);
 
   // The ADMIN link (#/panel?phone=CODE) is traded once for this browser's own session.
   useEffect(() => {
@@ -85,7 +102,7 @@ export function LivePanel() {
   }, [keyMode, refresh]);
 
   // While no camera is sending, keep a fresh QR on screen (a code lives two minutes).
-  const wantsQr = keyMode && Boolean(shift?.active) && !preview.live;
+  const wantsQr = keyMode && Boolean(shift?.active) && !previewLive;
   useEffect(() => {
     if (!wantsQr) { setPair(null); return undefined; }
     let alive = true;
@@ -134,7 +151,7 @@ export function LivePanel() {
 
   const shiftActive = Boolean(shift?.active);
   const station = status?.grant.stationName ?? '';
-  const chip = !shiftActive ? 'Sin cámara' : preview.live ? 'En vivo' : 'Esperando cámara';
+  const chip = !shiftActive ? 'Sin cámara' : previewLive ? 'En vivo' : 'Esperando cámara';
   return (
     <main className="live-panel">
       <header className="live-panel-bar">
@@ -147,26 +164,25 @@ export function LivePanel() {
         <div>
           <h1>Lavado de manos en vivo</h1>
           <p>{!shiftActive ? 'Pulsa “Iniciar cámara” y escanea el código con tu celular.'
-            : preview.live ? 'Lava las manos frente a la cámara; los pasos avanzan al confirmarlos.'
+            : previewLive ? 'Lava las manos frente a la cámara; los pasos avanzan al confirmarlos.'
               : 'Escanea el código con tu iPhone o Android para conectar la cámara.'}</p>
         </div>
-        <span className="live-chip"><span className={`live-dot is-${preview.live ? 'ok' : 'wait'}`} aria-hidden="true" />{chip}</span>
+        <span className="live-chip"><span className={`live-dot is-${previewLive ? 'ok' : 'wait'}`} aria-hidden="true" />{chip}</span>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
 
       <div className="live-panel-main">
         <section className="live-video" aria-label="Cámara con detección">
-          <div className="live-video-head"><h2>Cámara y detección</h2><span>{preview.live ? 'Cámara conectada' : 'Sin cámara'}</span></div>
+          <div className="live-video-head"><h2>Cámara y detección</h2><span>{previewLive ? 'Cámara conectada' : 'Sin cámara'}</span></div>
           <div className="live-video-stage">
-            {preview.url && preview.live
-              ? <img src={preview.url} alt="Cámara con las manos encuadradas" />
-              : <div className="live-video-empty">
+            <PreviewImage sessionId={active ? sessionId : null} getTicket={previewTicket} onLive={setPreviewLive} empty={
+              <div className="live-video-empty">
                 <strong>{shiftActive ? 'Esperando la cámara del celular' : 'La cámara no está iniciada'}</strong>
                 <span>{shiftActive ? 'Escanea el código de abajo.' : 'Pulsa “Iniciar cámara”.'}</span>
-              </div>}
+              </div>} />
           </div>
         </section>
-        <KioskProgress evaluating={preview.live} />
+        <KioskProgress evaluating={previewLive} />
       </div>
 
       <div className="live-panel-main">
@@ -188,12 +204,12 @@ export function LivePanel() {
                   <p className="live-note">El código sirve una vez y se renueva solo. Si escanean otro celular, la cámara anterior se reemplaza.</p>
                 </div>
               </div>
-              : <div className="live-start"><h2>Conecta una cámara</h2><p>{preview.live ? 'La cámara está enviando video.' : 'Preparando el código…'}</p></div>}
+              : <div className="live-start"><h2>Conecta una cámara</h2><p>{previewLive ? 'La cámara está enviando video.' : 'Preparando el código…'}</p></div>}
         </section>
         <section className="live-card" aria-label="Estado de la conexión">
           <h2>Conexión de punta a punta</h2>
           <HealthItem label="Sesión de lavado" state={active ? 'ok' : shiftActive ? 'wait' : 'off'} detail={active ? 'Activa en el servidor' : shiftActive ? 'Abriendo' : 'Sin turno'} />
-          <HealthItem label="Video con cajas" state={preview.live ? 'ok' : shiftActive ? 'wait' : 'off'} detail={preview.live ? 'Llega del PC' : 'Esperando al celular y al PC'} />
+          <HealthItem label="Video con cajas" state={previewLive ? 'ok' : shiftActive ? 'wait' : 'off'} detail={previewLive ? 'Llega del PC' : 'Esperando al celular y al PC'} />
         </section>
       </div>
     </main>
