@@ -52,7 +52,8 @@ export class BrowserRtcCameraRelay {
     const { ticket, iceServers } = await this.access(sessionId);
     if (signal?.aborted) throw new DOMException('Enlace WebRTC cancelado', 'AbortError');
     const wsBase = new URL(RuntimeEndpointConfig.websocketBaseUrl(), window.location.origin);
-    wsBase.protocol = wsBase.protocol === 'https:' ? 'wss:' : 'ws:';
+    // https/wss stay secure; only plain http/ws (local development) use ws. A wss base must never be downgraded.
+    wsBase.protocol = wsBase.protocol === 'https:' || wsBase.protocol === 'wss:' ? 'wss:' : 'ws:';
     wsBase.pathname = `/ws/webrtc/${encodeURIComponent(sessionId)}`;
     wsBase.search = new URLSearchParams({ ticket }).toString();
 

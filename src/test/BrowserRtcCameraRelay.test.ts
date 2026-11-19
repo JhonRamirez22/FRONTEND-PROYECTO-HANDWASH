@@ -15,7 +15,8 @@ class FakeSocket {
   onmessage: ((event: { data: string }) => void) | null = null;
   onerror: (() => void) | null = null;
   onclose: (() => void) | null = null;
-  constructor() { FakeSocket.last = this; }
+  url = '';
+  constructor(url?: string | URL) { this.url = String(url ?? ''); FakeSocket.last = this; }
   send(data: string) { this.sent.push(JSON.parse(data)); }
   close() { this.readyState = 3; }
   open() { this.readyState = FakeSocket.OPEN; this.onopen?.(); }
@@ -50,6 +51,26 @@ describe('browser WebRTC signaling', () => {
     expect(access).toHaveBeenCalledWith('session-9');
     expect(stationApi.webrtcAccess).not.toHaveBeenCalled();
     release();
+  });
+
+  it.each([
+    ['wss://api.example', 'wss://api.example/ws/webrtc/s-1?ticket='],
+    ['https://api.example', 'wss://api.example/ws/webrtc/s-1?ticket='],
+    ['ws://127.0.0.1:8080', 'ws://127.0.0.1:8080/ws/webrtc/s-1?ticket='],
+    ['http://127.0.0.1:8080', 'ws://127.0.0.1:8080/ws/webrtc/s-1?ticket='],
+  ])('opens signaling for the %s endpoint on %s without downgrading a secure one', async (base, expected) => {
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal('RTCPeerConnection', FakePeer);
+    (window as unknown as { __HANDWASH_CONFIG__?: unknown }).__HANDWASH_CONFIG__ = { websocketBaseUrl: base };
+    const stream = { getVideoTracks: () => [{ readyState: 'live' }] } as unknown as MediaStream;
+
+    const connecting = new BrowserRtcCameraRelay().connect('s-1', stream, () => {});
+    await vi.waitFor(() => expect(FakeSocket.last?.onopen).toBeTypeOf('function'));
+    FakeSocket.last.open();
+    (await connecting)();
+
+    expect(FakeSocket.last.url.startsWith(expected)).toBe(true);
+    delete (window as unknown as { __HANDWASH_CONFIG__?: unknown }).__HANDWASH_CONFIG__;
   });
 
   it('relays trickled ICE but never sends the null end-of-gathering candidate Java rejects', async () => {
