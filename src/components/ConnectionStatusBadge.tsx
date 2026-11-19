@@ -12,7 +12,7 @@ const statusConfig = {
   reconnecting: {
     label: 'Reconectando',
     icon: RefreshCw,
-    dotClass: 'bg-warning animate-pulse-slow',
+    dotClass: 'bg-warning-slow',
     bgClass: 'bg-warning/10 text-warning border-warning/20',
   },
   disconnected: {
@@ -31,7 +31,7 @@ export function ConnectionStatusBadge() {
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-200',
+        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-200',
         config.bgClass
       )}
       role="status"

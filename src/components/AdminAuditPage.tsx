@@ -330,11 +330,11 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
                           <td><StatusPill status={encounter.status} /></td>
                           <td>
                             <span className="block">{encounter.modelVersion} / {encounter.modelSha256.slice(0, 12)}</span>
-                            <span className="mt-1 block text-slate-400">{encounter.datasetVersion}</span>
+                            <span className="mt-1 block text-muted-foreground">{encounter.datasetVersion}</span>
                           </td>
                           <td>
                             {encounter.producerClientId ? (
-                              <><code>{encounter.producerClientId}</code><span className="mt-1 block text-slate-400">epoch {encounter.producerEpoch ?? 'Sin dato'}</span></>
+                              <><code>{encounter.producerClientId}</code><span className="mt-1 block text-muted-foreground">epoch {encounter.producerEpoch ?? 'Sin dato'}</span></>
                             ) : 'Sin vincular'}
                           </td>
                           <td className="tabular-nums">{encounter.attemptsRestarted}</td>
@@ -382,16 +382,16 @@ function FailedAttemptList({ attempts }: { attempts: FailedAttemptAuditRecord[] 
       {attempts.length === 0 ? <p className="admin-secondary-empty">No hay reintentos registrados.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="text-xs text-muted-foreground">
               <tr><th className="px-5 py-3 font-medium">Fecha</th><th className="px-5 py-3 font-medium">Sesión</th><th className="px-5 py-3 font-medium">Intento</th><th className="px-5 py-3 font-medium">Motivo</th><th className="px-5 py-3 font-medium">Duración</th></tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {attempts.map((attempt) => (
                 <tr key={`${attempt.sessionId}-${attempt.attemptNumber}`}>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700">{formatDate(attempt.createdAtEpochMs)}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-slate-600">{attempt.sessionId}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-foreground">{formatDate(attempt.createdAtEpochMs)}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{attempt.sessionId}</td>
                   <td className="px-5 py-3 tabular-nums">{attempt.attemptNumber}</td>
-                  <td className="px-5 py-3 text-slate-700">{attempt.reasonCode}</td>
+                  <td className="px-5 py-3 text-foreground">{attempt.reasonCode}</td>
                   <td className="px-5 py-3 tabular-nums">{Math.round(attempt.durationMs / 1_000)} s</td>
                 </tr>
               ))}

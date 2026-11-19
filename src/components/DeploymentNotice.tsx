@@ -26,7 +26,7 @@ export function DeploymentNotice({ status, loading = false, onRetry }: Deploymen
     >
       <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <h2 className="text-sm font-extrabold tracking-wide">{title}</h2>
+        <h2 className="text-sm font-semibold">{title}</h2>
         <p className="mt-1 break-words text-sm leading-5">{status.notice}</p>
       </div>
       {status.mode === 'UNVERIFIED' && onRetry && (
