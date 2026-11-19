@@ -30,6 +30,17 @@ describe('StationLinkActions', () => {
     expect(await screen.findByDisplayValue(`https://app.example/#/operator?phone=${'B'.repeat(43)}`)).toBeTruthy();
   });
 
+  it('gives the professor a link that opens the live panel', async () => {
+    const user = userEvent.setup();
+    const onIssue = vi.fn(async () => ({ code: CODE, expiresInSeconds: 3600 }));
+    render(<StationLinkActions stationId="st-1" stationName="Lavamanos A" origin="https://app.example" onIssue={onIssue} />);
+
+    await user.click(screen.getByRole('button', { name: 'Enlace para el profesor' }));
+
+    expect(onIssue).toHaveBeenLastCalledWith('st-1', false);
+    expect(await screen.findByDisplayValue(`https://app.example/#/panel?phone=${CODE}`)).toBeTruthy();
+  });
+
   it('copies the link', async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();

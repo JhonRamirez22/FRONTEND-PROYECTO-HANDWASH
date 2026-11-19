@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Clipboard, LoaderCircle, Link2 } from 'lucide-react';
-import { stationLinkUrl } from '@/lib/stationLink';
+import { stationLinkUrl, type StationLinkTarget } from '@/lib/stationLink';
 import { QrImage } from './QrImage';
 
 export interface IssuedStationLink { code: string; expiresInSeconds: number }
@@ -15,19 +15,19 @@ interface StationLinkActionsProps {
 
 /** ADMIN hands over one link and the device works: no key to type, no activation code. */
 export function StationLinkActions({ stationId, stationName, origin, onIssue }: StationLinkActionsProps) {
-  const [busy, setBusy] = useState<'mac' | 'phone' | null>(null);
-  const [issued, setIssued] = useState<{ url: string; minutes: number; mac: boolean } | null>(null);
+  const [busy, setBusy] = useState<'mac' | 'phone' | 'panel' | null>(null);
+  const [issued, setIssued] = useState<{ url: string; minutes: number; mac: boolean; target: StationLinkTarget } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function issue(mac: boolean) {
+  async function issue(mac: boolean, target: StationLinkTarget = 'operator') {
     if (busy) return;
-    setBusy(mac ? 'mac' : 'phone');
+    setBusy(target === 'panel' ? 'panel' : mac ? 'mac' : 'phone');
     setError(null);
     setNotice(null);
     try {
       const link = await onIssue(stationId, mac);
-      setIssued({ url: stationLinkUrl(origin, link.code), minutes: Math.round(link.expiresInSeconds / 60), mac });
+      setIssued({ url: stationLinkUrl(origin, link.code, target), minutes: Math.round(link.expiresInSeconds / 60), mac, target });
     } catch (cause) {
       setIssued(null);
       setError(cause instanceof Error ? cause.message : 'No se pudo generar el enlace.');
@@ -45,7 +45,11 @@ export function StationLinkActions({ stationId, stationName, origin, onIssue }: 
   return (
     <div className="station-link-actions">
       <div className="station-link-buttons">
-        <button className="button-primary" type="button" disabled={busy !== null} onClick={() => void issue(true)}>
+        <button className="button-primary" type="button" disabled={busy !== null} onClick={() => void issue(false, 'panel')}>
+          {busy === 'panel' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+          Enlace para el profesor
+        </button>
+        <button className="button-quiet" type="button" disabled={busy !== null} onClick={() => void issue(true)}>
           {busy === 'mac' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
           Enlace para el Mac del puesto
         </button>
@@ -57,7 +61,7 @@ export function StationLinkActions({ stationId, stationName, origin, onIssue }: 
       {error && <p className="form-error" role="alert">{error}</p>}
       {issued && <div className="station-link-result" role="status" aria-live="polite">
         <label htmlFor={`station-link-${stationId}`}>
-          {issued.mac ? `Pantalla de “${stationName}”` : `Consola de “${stationName}” en un celular`}
+          {issued.target === 'panel' ? `Panel en vivo de “${stationName}”` : issued.mac ? `Pantalla de “${stationName}”` : `Consola de “${stationName}” en un celular`}
         </label>
         <div className="station-link-row">
           <input id={`station-link-${stationId}`} readOnly value={issued.url} onFocus={(event) => event.currentTarget.select()} />

@@ -6,6 +6,7 @@ const CODE = 'P'.repeat(43);
 describe('phoneCodeFromHash', () => {
   it('reads the one-time code from the operator link and ignores everything else', () => {
     expect(phoneCodeFromHash(`#/operator?phone=${CODE}`)).toBe(CODE);
+    expect(phoneCodeFromHash(`#/panel?phone=${CODE}`)).toBe(CODE);
     expect(phoneCodeFromHash('#/operator')).toBeNull();
     expect(phoneCodeFromHash('#/admin?phone=' + CODE)).toBeNull();
     expect(phoneCodeFromHash('#/operator?phone=short')).toBeNull();

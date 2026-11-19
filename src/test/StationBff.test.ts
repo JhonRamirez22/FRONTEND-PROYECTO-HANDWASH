@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  csrf, enroll, operatorCameraAgent, operatorCameraAgentRequest, operatorKeyLogin, operatorKeyLogout, operatorPhoneLink, operatorPhoneLogin, operatorWebrtcTicket, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
+  csrf, enroll, operatorCameraAgent, operatorCameraAgentRequest, operatorKeyLogin, operatorKeyLogout, operatorCameraPair, operatorPhoneLink, operatorPhoneLogin, operatorWebrtcTicket, operatorStatus, operatorClaim, operatorShiftStart, operatorShiftStatus, operatorShiftStop, operatorStartSession, operatorStepFeedback,
   evidenceUpload, startSession, status, webrtcTicket,
 } from '../server/stationBff';
 
@@ -729,6 +729,24 @@ describe('operator API key session through the BFF', () => {
       const response = await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: phoneCode }, guarded));
       expect(response.status).toBe(401);
       expect(response.headers.get('set-cookie')).toBeNull();
+    });
+  });
+
+  describe('camera pairing', () => {
+    const phoneCode = 'P'.repeat(43);
+    const withSession = { ...guarded, Cookie: `hw_station_csrf=${csrfToken}; hw_operator_key_session=${sessionToken}` };
+    it('relays the one-time camera code from Java to a signed-in panel', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ code: phoneCode, expiresInSeconds: 120 }), { status: 200 }));
+      const response = await operatorCameraPair(request('/api/operator?action=camera-pair', 'POST', {}, withSession));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ code: phoneCode, expiresInSeconds: 120 });
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain('/api/v1/operator/camera-pair');
+    });
+
+    it('needs a signed-in panel and rejects a malformed answer', async () => {
+      expect((await operatorCameraPair(request('/api/operator?action=camera-pair', 'POST', {}, guarded))).status).toBe(401);
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ code: 'short' }), { status: 200 }));
+      expect((await operatorCameraPair(request('/api/operator?action=camera-pair', 'POST', {}, withSession))).status).toBe(502);
     });
   });
 

@@ -274,6 +274,25 @@ export async function operatorPhoneLink(request: Request): Promise<Response> {
   }
 }
 
+/** The signed-in panel asks Java for a one-time code that connects a phone camera (shown as a QR). */
+export async function operatorCameraPair(request: Request): Promise<Response> {
+  const securityError = requireMutationSecurity(request);
+  if (securityError) return securityError;
+  if (!allowRequest(request, 12)) return error(429, 'RATE_LIMITED');
+  const authorization = bearerToken(request);
+  if (!authorization) return error(401, 'AUTH_REQUIRED');
+  try {
+    const result = await callBackend('/api/v1/operator/camera-pair', 'POST', {}, undefined, { Authorization: authorization });
+    if (!result.ok) return upstreamError(result.status, result.body);
+    if (!isObject(result.body) || !isCredential(result.body.code) || typeof result.body.expiresInSeconds !== 'number') {
+      return error(502, 'CAMERA_PAIR_RESPONSE_INVALID');
+    }
+    return json({ code: result.body.code, expiresInSeconds: result.body.expiresInSeconds });
+  } catch {
+    return error(503, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 /** The phone trades the one-time code for its own HttpOnly console session; the key itself never reaches it. */
 export async function operatorPhoneLogin(request: Request): Promise<Response> {
   const securityError = requireMutationSecurity(request);

@@ -3,6 +3,8 @@ import { CircleAlert, LoaderCircle, ShieldX } from 'lucide-react';
 import { AdminAuditPage } from './components/AdminAuditPage';
 import { AppShell } from './components/AppShell';
 import { CloudAccessPage } from './components/CloudAccessPage';
+import { CameraPhonePage } from './components/CameraPhonePage';
+import { LivePanel } from './components/LivePanel';
 import { KioskScreen } from './components/KioskScreen';
 import { OperatorConsole } from './components/OperatorConsole';
 import { ConnectionStatusBadge } from './components/ConnectionStatusBadge';
@@ -109,6 +111,8 @@ function App() {
       });
   }, [cloudMode]);
 
+  if (route === 'camera') return <CameraPhonePage />;
+  if (route === 'panel') return <LivePanel />;
   if (cloudMode && route === 'kiosk' && !hasAuthCallback) return <KioskScreen />;
   if (cloudMode && !authReady) {
     return <div className="full-page-state" role="status"><LoaderCircle className="animate-spin" />Validando acceso…</div>;
@@ -299,9 +303,11 @@ function AccessDenied({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-type AppRoute = 'kiosk' | 'operator' | 'admin';
+type AppRoute = 'kiosk' | 'operator' | 'admin' | 'panel' | 'camera';
 
 function readRoute(): AppRoute {
+  if (window.location.hash.startsWith('#/panel')) return 'panel';
+  if (window.location.hash.startsWith('#/camera')) return 'camera';
   if (window.location.hash.startsWith('#/operator')) return 'operator';
   if (window.location.hash.startsWith('#/admin')) return 'admin';
   return 'kiosk';
