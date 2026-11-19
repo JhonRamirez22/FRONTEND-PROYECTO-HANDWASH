@@ -1,6 +1,7 @@
 import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
 import type { CameraRelayState } from '@/lib/BrowserRtcCameraRelay';
 import { frameWithSequence } from '@/lib/CameraFrames';
+import { QualityGovernor, type PictureSetting } from '@/lib/QualityGovernor';
 
 export interface FrameSenderOptions {
   /** Frames per second to send (the phone drops frames when the network cannot keep up). */
@@ -12,17 +13,17 @@ export interface FrameSenderOptions {
   /** Do not send while more than this many bytes are still waiting in the socket. */
   maxBuffered?: number;
   /** Turns the camera picture into a JPEG; replaceable for tests. */
-  encode?: (video: HTMLVideoElement) => Promise<ArrayBuffer | null>;
+  encode?: (video: HTMLVideoElement, setting: PictureSetting) => Promise<ArrayBuffer | null>;
 }
 
-const DEFAULTS = { fps: 15, maxSide: 960, quality: 0.72, maxBuffered: 300_000 };
+const DEFAULTS = { fps: 15, maxSide: 960, quality: 0.72, maxBuffered: 90_000 };
 const RETRY_MS = [1_000, 2_000, 4_000];
 const REPLACED = 4000;
 const OPEN = 1; // WebSocket.OPEN
 
-function canvasEncoder(maxSide: number, quality: number) {
+function canvasEncoder() {
   const canvas = document.createElement('canvas');
-  return async (video: HTMLVideoElement): Promise<ArrayBuffer | null> => {
+  return async (video: HTMLVideoElement, { maxSide, quality }: PictureSetting): Promise<ArrayBuffer | null> => {
     const width = video.videoWidth;
     const height = video.videoHeight;
     if (!width || !height) return null;
@@ -55,8 +56,9 @@ export class CameraFrameSender {
 
   /** Returns the function that stops sending and closes everything. */
   run(sessionId: string, stream: MediaStream, onState: (state: CameraRelayState, attempt: number) => void): () => void {
-    const { fps, maxSide, quality, maxBuffered } = this.options;
-    const encode = this.options.encode ?? canvasEncoder(maxSide, quality);
+    const { fps, maxBuffered } = this.options;
+    const encode = this.options.encode ?? canvasEncoder();
+    const governor = new QualityGovernor();
     const interval = Math.round(1000 / fps);
     const video = this.options.encode ? ({} as HTMLVideoElement) : document.createElement('video');
     if (!this.options.encode) {
@@ -76,11 +78,12 @@ export class CameraFrameSender {
     const tick = async () => {
       if (stopped) return;
       const current = socket;
+      if (current && current.readyState === OPEN && current.bufferedAmount >= maxBuffered) governor.congested();
       if (current && current.readyState === OPEN && current.bufferedAmount < maxBuffered && !encoding) {
         encoding = true;
         try {
-          const jpeg = await encode(video);
-          if (jpeg && !stopped && current.readyState === OPEN) current.send(frameWithSequence(seq++, jpeg));
+          const jpeg = await encode(video, governor.current());
+          if (jpeg && !stopped && current.readyState === OPEN) { current.send(frameWithSequence(seq++, jpeg)); governor.sent(); }
         } catch { /* one bad frame is skipped */ } finally { encoding = false; }
       }
       if (!stopped) tickTimer = setTimeout(() => void tick(), interval);
