@@ -3,7 +3,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { FRICTION_STEPS, STEP_LABELS, WHO_STEPS } from '@/types';
 import { formatSeconds } from '@/lib/KioskGuideCatalog';
 import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
-import { STEP_NAMES, stepNumber } from '@/lib/CameraFrames';
+import { STEP_NAMES, stepNumber, wrongStepMessage } from '@/lib/CameraFrames';
 import type { DetectedSummary } from '@/hooks/usePreviewCanvas';
 import { KioskGuidance } from './KioskGuidance';
 import { KioskWashSummary } from './KioskWashSummary';
@@ -93,7 +93,7 @@ export function LiveStepLine({ detected, credit }: { detected: DetectedSummary; 
   return (
     <div className={`kiosk-live-step${detected.error ? ' is-error' : seen ? ' is-seen' : ''}`} role="status">
       <span className="kiosk-live-step-now">
-        {detected.error ? 'Paso fuera de orden: se reinicia desde Palmas'
+        {detected.error ? wrongStepMessage(seen, detected.expected)
           : seen ? `Detectando: Paso ${seen} · ${STEP_NAMES[seen - 1]}${detected.confidence !== null ? ` (${Math.round(detected.confidence * 100)} %)` : ''}`
             : detected.hands > 0 ? 'Manos detectadas; esperando un paso' : 'Sin manos a la vista'}
       </span>

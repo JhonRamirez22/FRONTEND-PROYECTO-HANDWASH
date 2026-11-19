@@ -12,7 +12,7 @@ describe('KioskProgress live line', () => {
   });
   it('warns when a step is out of order and says the wash is complete after the sixth', () => {
     const { rerender } = render(<KioskProgress detected={{ ...base, step: 'Paso5_Pulgar', error: true, current: 0, expected: 1 }} />);
-    expect(screen.getByText(/fuera de orden/)).toBeTruthy();
+    expect(screen.getByText(/Paso incorrecto: hiciste el Paso 5/)).toBeTruthy();
     rerender(<KioskProgress detected={{ ...base, step: null, current: 6, expected: 0 }} />);
     expect(screen.getByText('Sigue: Lavado completo')).toBeTruthy();
   });
