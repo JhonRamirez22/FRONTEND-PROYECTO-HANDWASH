@@ -1227,3 +1227,11 @@
 .kiosk-live-step-credit { display: grid; gap: 4px; font-size: 14px; }
 .kiosk-live-step-credit strong { font-size: 20px; letter-spacing: -0.02em; }
 .kiosk-step-meter.big { height: 10px; border-radius: 5px; }
+.kiosk-verdict { display: grid; gap: 2px; margin: 0 0 12px; padding: 12px 14px; border-radius: 6px; border: 1px solid; }
+.kiosk-verdict strong { font-size: 20px; letter-spacing: -0.02em; }
+.kiosk-verdict span { font-size: 14px; }
+.kiosk-verdict.is-ok { background: #e8f5ee; border-color: #c9ded3; color: #1f5f3f; }
+.kiosk-verdict.is-bad { background: #ffedea; border-color: #f0c6c0; color: #831c1e; }
+.kiosk-running-score { margin: 0 0 10px; font-size: 14px; }
+.kiosk-running-score strong { font-size: 18px; }
+.kiosk-live-step-done { font-weight: 600; color: #1f5f3f; }

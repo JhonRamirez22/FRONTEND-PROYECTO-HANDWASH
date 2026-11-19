@@ -38,3 +38,29 @@ describe('step meter', () => {
     expect(screen.getByText(/2\.5 \/ 5 s/)).toBeTruthy();
   });
 });
+
+import { KioskWashSummary } from '@/components/KioskWashSummary';
+import type { FrictionEvaluation } from '@/types';
+
+describe('step finished cue and verdict', () => {
+  it('tells the person when a step is done and what comes next', () => {
+    render(<LiveStepLine detected={{ ...base, step: 'Paso1_Palmas' }} credit={{ step: 1, percent: 100, seconds: 7, required: 7 }} />);
+    expect(screen.getByText(/Paso 1 listo: ya puedes pasar al Paso 2 · Dorsos/)).toBeTruthy();
+  });
+  const finished = (verdict: 'CORRECTO' | 'RECHAZADO', score: number) => ({
+    numeroIntento: 1, estadoIntento: 'COMPLETO_PARCIAL', secuenciaValidada: true, veredicto: verdict, puntajePct: score,
+    ultimoResultado: { numeroIntento: 1, resultado: 'FRICTION_SEQUENCE_COMPLETE', motivo: null, pasos: [], puntajePct: score, veredicto: verdict },
+    pasos: [{ paso: 'PASO_1_PALMAS', estado: 'VALIDADO', tiempoAcreditadoMs: 7000, minimoRequeridoMs: 7000, motivo: null, calidadPct: 93 }],
+  }) as unknown as FrictionEvaluation;
+  it('shows a correct wash with its average, and the quality of each step', () => {
+    render(<KioskWashSummary evaluation={finished('CORRECTO', 91)} />);
+    expect(screen.getByText('Lavado correcto')).toBeTruthy();
+    expect(screen.getByText(/91 % de calidad promedio · mínimo 80 %/)).toBeTruthy();
+    expect(screen.getByText(/93 % ·/)).toBeTruthy();
+  });
+  it('shows a rejected wash when the average is under the pass mark', () => {
+    render(<KioskWashSummary evaluation={finished('RECHAZADO', 72)} />);
+    expect(screen.getByText('Lavado rechazado')).toBeTruthy();
+    expect(screen.getByText(/72 % de calidad promedio/)).toBeTruthy();
+  });
+});

@@ -123,6 +123,10 @@ export interface DetectionStateUpdate {
 }
 
 export type FrictionStepStatus = 'PENDIENTE' | 'EN_CURSO' | 'VALIDADO' | 'REQUIERE_REPETICION';
+export type Verdict = 'CORRECTO' | 'RECHAZADO';
+
+export const PASS_MARK_PCT = 80;
+
 export interface FrictionEvaluation {
   versionPolitica: 'FRICCION_BALANCEADA_V2';
   revisionEstado: number;
@@ -135,8 +139,12 @@ export interface FrictionEvaluation {
   objetivoProcedimientoMs: number;
   secuenciaValidada: boolean;
   persistenciaPendiente: boolean;
-  ultimoResultado: { numeroIntento: number; resultado: string; motivo: string | null; pasos: FrictionStepEvaluation[] } | null;
+  ultimoResultado: { numeroIntento: number; resultado: string; motivo: string | null; pasos: FrictionStepEvaluation[]; puntajePct?: number; veredicto?: Verdict | null } | null;
   guia: KioskGuide;
+  /** Average quality of the six movements so far, 0-100. */
+  puntajePct?: number;
+  /** Only for a finished complete attempt: 80 % or more is a correct wash. */
+  veredicto?: Verdict | null;
 }
 
 /** Closed catalog of Java kiosk instructions; the kiosk only translates them. */
@@ -160,6 +168,8 @@ export interface FrictionStepEvaluation {
   tiempoAcreditadoMs: number;
   minimoRequeridoMs: number;
   motivo: string | null;
+  /** How well the step was done, 0-100: time done against the time asked, times how sure the detector was. */
+  calidadPct?: number;
 }
 
 export const STEP_LABELS: Partial<Record<HandWashStep, string>> & Record<string, string> = {

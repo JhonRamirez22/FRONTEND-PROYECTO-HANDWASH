@@ -38,6 +38,8 @@ export function KioskProgress({ evaluating = true, detected = null }: { evaluati
             : active ? 'Estado recibido de Java' : summary ? 'Sesión finalizada' : 'Esperando sesión'}
         </span>
       </div>
+      {active && evaluation && typeof evaluation.puntajePct === 'number' && !(evaluation.estadoIntento === 'COMPLETO_PARCIAL' || evaluation.estadoIntento === 'INTERRUMPIDO')
+        && <p className="kiosk-running-score">Calidad promedio hasta ahora: <strong>{evaluation.puntajePct} %</strong> <small>(correcto desde 80 %)</small></p>}
       {evaluating && detected && <LiveStepLine detected={detected} credit={creditOf(evaluation?.pasos.find((item) => item.estado === 'EN_CURSO' || item.estado === 'REQUIERE_REPETICION'))} />}
       {active && evaluating && evaluation && <KioskGuidance evaluation={evaluation} />}
       {evaluation && <KioskWashSummary evaluation={evaluation} />}
@@ -57,7 +59,7 @@ export function KioskProgress({ evaluating = true, detected = null }: { evaluati
                 <span className="kiosk-step-label">{STEP_LABELS[step] ?? step}</span>
                 {inEvaluation.includes(index + 1) && <small className="kiosk-step-evaluation">En evaluación</small>}
                 {currentStep && <small>{assessment?.estado === 'REQUIERE_REPETICION' ? 'Corrección pendiente' : 'En curso'} · Java</small>}
-                {observed && <small>{assessment ? 'Validado' : 'Observado'} · Java</small>}
+                {observed && <small>{assessment ? 'Validado' : 'Observado'}{typeof assessment?.calidadPct === 'number' ? ` · calidad ${assessment.calidadPct} %` : ''} · Java</small>}
                 {assessment && assessment.estado !== 'PENDIENTE' && <>
                   <small>{formatSeconds(assessment.tiempoAcreditadoMs)} / {assessment.minimoRequeridoMs / 1000} s observados</small>
                   <span className="kiosk-step-meter" aria-hidden="true">
@@ -101,6 +103,9 @@ export function LiveStepLine({ detected, credit }: { detected: DetectedSummary; 
         <strong>{credit.percent} %</strong> del Paso {credit.step} · {STEP_NAMES[credit.step - 1]} ({credit.seconds.toFixed(1)} / {credit.required.toFixed(0)} s)
         <span className="kiosk-step-meter big" aria-hidden="true"><span style={{ width: `${credit.percent}%` }} /></span>
       </span>}
+      {credit && credit.percent >= 100 && detected.expected > 0 && !detected.error && (
+        <span className="kiosk-live-step-done">✓ Paso {credit.step} listo: ya puedes pasar al Paso {Math.min(6, credit.step + 1)} · {STEP_NAMES[Math.min(5, credit.step)]}</span>
+      )}
       <span className="kiosk-live-step-next">Sigue: {next}</span>
       <span className="kiosk-live-step-bar" aria-hidden="true"><span style={{ width: `${Math.round(100 * detected.current / 6)}%` }} /></span>
     </div>
