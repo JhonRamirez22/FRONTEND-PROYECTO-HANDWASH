@@ -9,6 +9,7 @@ import { AdminStationRegistry } from './AdminStationRegistry';
 import { AdminOperatorAccess } from './AdminOperatorAccess';
 import { AdminApiKeysPanel } from './AdminApiKeysPanel';
 import { ConnectStationCard } from './ConnectStationCard';
+import { StationLinksPanel } from './StationLinksPanel';
 import { PendingPcsPanel } from './PendingPcsPanel';
 import { connectStation } from '../lib/connectStation';
 import { AdminWashReports } from './AdminWashReports';
@@ -32,6 +33,10 @@ function adminToken(): string {
   const token = cognitoAdminAuth.getAccessToken();
   if (!token) throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.');
   return token;
+}
+
+async function loadActiveStations() {
+  return (await auditApi.stations(adminToken())).filter((station) => station.revokedAtEpochMs === null);
 }
 
 export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
@@ -223,16 +228,21 @@ export function AdminAuditPage({ onBack }: AdminAuditPageProps) {
           </div>
         </section>
 
-        {view === 'ready' && <ConnectStationCard operatorUrl={`${window.location.origin}/#/operator`}
+        {view === 'ready' && <ConnectStationCard origin={window.location.origin}
+          onIssueLink={async (stationId, mac) => auditApi.stationOperatorLink(adminToken(), stationId, mac)}
           onConnect={async (name) => {
             const token = cognitoAdminAuth.getAccessToken();
             if (!token) { signOut(); throw new Error('Sesión ADMIN vencida. Inicia sesión de nuevo.'); }
             return connectStation(auditApi, token, name);
           }} />}
 
+        {view === 'ready' && <StationLinksPanel origin={window.location.origin}
+          onIssue={async (stationId, mac) => auditApi.stationOperatorLink(adminToken(), stationId, mac)}
+          loadStations={loadActiveStations} />}
+
         {view === 'ready' && <PendingPcsPanel
           loadPending={async () => auditApi.producerEnrollments(adminToken())}
-          loadStations={async () => (await auditApi.stations(adminToken())).filter((station) => station.revokedAtEpochMs === null)}
+          loadStations={loadActiveStations}
           approve={async (userCode, stationId) => auditApi.approveProducerEnrollment(adminToken(), userCode, stationId)}
           reject={async (userCode) => auditApi.rejectProducerEnrollment(adminToken(), userCode)} />}
 

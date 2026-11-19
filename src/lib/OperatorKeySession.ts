@@ -89,7 +89,7 @@ export class OperatorKeySession {
       stationId: payload.stationId, stationName: payload.stationName,
       label: typeof payload.label === 'string' ? payload.label : '',
       expiresAtEpochMs: typeof payload.expiresAtEpochMs === 'number' ? payload.expiresAtEpochMs : 0,
-      stationLinked: false, macAlreadyLinked: false,
+      stationLinked: payload.stationLinked === true, macAlreadyLinked: payload.macAlreadyLinked === true,
     };
   }
 

@@ -292,9 +292,13 @@ export async function operatorPhoneLogin(request: Request): Promise<Response> {
       return error(502, 'PHONE_LOGIN_RESPONSE_INVALID');
     }
     const maxAge = Math.max(1, Math.min(43_200, Math.floor((result.body.expiresAtEpochMs - Date.now()) / 1000)));
+    const cookies = [`${OPERATOR_KEY_COOKIE}=${result.body.sessionToken}; Path=${OPERATOR_COOKIE_PATH}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`];
+    // A link issued by ADMIN for the station's Mac also carries the station credential: the Mac becomes the station screen.
+    const stationLinked = isCredential(result.body.stationCredential);
+    if (stationLinked) cookies.push(persistentCookie(STATION_COOKIE, result.body.stationCredential as string));
     return json({ stationId: result.body.stationId, stationName: result.body.stationName, label: result.body.label,
-      expiresAtEpochMs: result.body.expiresAtEpochMs, stationLinked: false, macAlreadyLinked: false }, 200,
-    [`${OPERATOR_KEY_COOKIE}=${result.body.sessionToken}; Path=${OPERATOR_COOKIE_PATH}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`]);
+      expiresAtEpochMs: result.body.expiresAtEpochMs, stationLinked,
+      macAlreadyLinked: result.body.macAlreadyLinked === true }, 200, cookies);
   } catch {
     return error(503, 'BACKEND_UNAVAILABLE');
   }

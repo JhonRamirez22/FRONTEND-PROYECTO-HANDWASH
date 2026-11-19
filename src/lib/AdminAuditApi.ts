@@ -330,6 +330,13 @@ export class AdminAuditApi {
       token, undefined, 'POST');
   }
 
+  /** One-time link that makes a Mac (mac=true: also the station screen) or a phone work for this station. */
+  async stationOperatorLink(token: string, stationId: string, mac: boolean, ttlMinutes = 60):
+    Promise<{ code: string; expiresInSeconds: number }> {
+    return this.request(`/api/v1/admin/stations/${encodeURIComponent(stationId)}/operator-link`,
+      token, undefined, 'POST', { ttlMinutes, mac });
+  }
+
   async createOperatorAccount(token: string, stationId: string, email: string): Promise<OperatorAccountCreated> {
     return this.request('/api/v1/admin/stations/operator-accounts', token, undefined, 'POST', { stationId, email });
   }

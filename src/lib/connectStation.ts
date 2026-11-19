@@ -1,21 +1,13 @@
 import type { AdminAuditApi } from './AdminAuditApi';
 
-export interface ConnectedStation { stationName: string; key: string }
+export interface ConnectedStation { stationId: string; stationName: string }
 
-type Api = Pick<AdminAuditApi, 'provisionStation' | 'createApiKey'>;
+type Api = Pick<AdminAuditApi, 'provisionStation'>;
 
-/** One step for the admin: a station plus the operator key for its Mac. The PC with YOLO pairs itself separately. */
+/** One step for the admin: create the station. Its Mac and phones open a link; the PC with YOLO pairs itself. */
 export async function connectStation(api: Api, token: string, rawName: string): Promise<ConnectedStation> {
   const name = rawName.trim();
   if (!name) throw new Error('Escribe un nombre para el puesto.');
   const station = await api.provisionStation(token, { stationName: name, producerClientId: '', operatorEmails: [] });
-  try {
-    const created = await api.createApiKey(token, {
-      stationId: station.stationId, label: name, scopes: ['CONSOLE'],
-    });
-    return { stationName: station.stationName, key: created.key };
-  } catch (cause) {
-    const detail = cause instanceof Error ? ` (${cause.message})` : '';
-    throw new Error(`El puesto se creó, pero falta su key${detail}. Ábrela en Avanzado → API keys y crea una con permiso de Consola.`);
-  }
+  return { stationId: station.stationId, stationName: station.stationName };
 }
