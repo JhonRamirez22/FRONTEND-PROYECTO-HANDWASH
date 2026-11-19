@@ -57,7 +57,7 @@ describe('usePreviewCanvas', () => {
       FakeSocket.instances[0]!.onmessage?.({ data: JSON.stringify({ seq: 1, w: 960, h: 540, hands: [{ b: [10, 20, 110, 220], c: 0.9, k: [] }], step: 'Paso1_Palmas', conf: 0.88, fps: 14 }) });
     });
     await waitFor(() => expect(ctx.strokeRect).toHaveBeenCalled());
-    expect(result.current.detected).toEqual({ step: 'Paso1_Palmas', confidence: 0.88, hands: 1 });
+    expect(result.current.detected).toEqual({ step: 'Paso1_Palmas', confidence: 0.88, hands: 1, current: 0, expected: 1, error: false });
   });
 
   it('ignores a malformed overlay and does nothing without a session', async () => {

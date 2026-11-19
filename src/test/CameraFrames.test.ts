@@ -53,3 +53,43 @@ describe('drawOverlay', () => {
     expect(ctx.strokeRect).not.toHaveBeenCalled();
   });
 });
+
+import { stepNumber, drawOverlay } from '@/lib/CameraFrames';
+
+describe('step guidance in the overlay', () => {
+  const base = { seq: 1, w: 100, h: 100, conf: 0.9, fps: 10, cur: 1, exp: 2, err: false };
+  const hand = { b: [10, 20, 60, 80] as [number, number, number, number], c: 0.9, k: [] };
+  const fakeCtx = () => {
+    const calls: string[] = [];
+    const ctx = { save: () => undefined, restore: () => undefined, strokeRect: () => calls.push('box'), fillRect: () => undefined,
+      fillText: (t: string) => calls.push(t), measureText: () => ({ width: 10 }), beginPath: () => undefined, arc: () => undefined, fill: () => undefined,
+      lineWidth: 1, strokeStyle: '', fillStyle: '', font: '' } as unknown as CanvasRenderingContext2D;
+    return { ctx, calls };
+  };
+
+  it('reads the step number from the PC name', () => {
+    expect(stepNumber('Paso3_Interdigitales')).toBe(3);
+    expect(stepNumber('Paso7_Circulares')).toBeNull();
+    expect(stepNumber(null)).toBeNull();
+  });
+  it('parses the coach fields with safe defaults', () => {
+    const ok = parseOverlay(JSON.stringify({ seq: 1, w: 10, h: 10, hands: [], step: null, conf: null, fps: 1, cur: 2, exp: 3, err: true }));
+    expect([ok?.cur, ok?.exp, ok?.err]).toEqual([2, 3, true]);
+    const old = parseOverlay(JSON.stringify({ seq: 1, w: 10, h: 10, hands: [] }));
+    expect([old?.cur, old?.exp, old?.err]).toEqual([0, 1, false]);
+  });
+  it('labels the box with the detected step, once even for joined hands', () => {
+    const { ctx, calls } = fakeCtx();
+    drawOverlay(ctx, { ...base, step: 'Paso2_Dorsos', hands: [hand, { ...hand }] }, 100, 100);
+    expect(calls.filter((c) => c === 'box')).toHaveLength(1);
+    expect(calls).toContain('Paso 2 · Dorsos 90%');
+  });
+  it('says what it waits for when no step is detected, and flags an out-of-order step', () => {
+    const waiting = fakeCtx();
+    drawOverlay(waiting.ctx, { ...base, step: null, hands: [hand] }, 100, 100);
+    expect(waiting.calls).toContain('Esperando: Paso 2 · Dorsos');
+    const wrong = fakeCtx();
+    drawOverlay(wrong.ctx, { ...base, step: 'Paso5_Pulgar', err: true, hands: [hand] }, 100, 100);
+    expect(wrong.calls).toContain('Paso fuera de orden · se reinicia');
+  });
+});

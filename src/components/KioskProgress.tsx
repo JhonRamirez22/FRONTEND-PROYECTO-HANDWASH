@@ -3,6 +3,8 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { FRICTION_STEPS, STEP_LABELS, WHO_STEPS } from '@/types';
 import { formatSeconds } from '@/lib/KioskGuideCatalog';
 import { RuntimeEndpointConfig } from '@/lib/RuntimeEndpointConfig';
+import { STEP_NAMES, stepNumber } from '@/lib/CameraFrames';
+import type { DetectedSummary } from '@/hooks/usePreviewCanvas';
 import { KioskGuidance } from './KioskGuidance';
 import { KioskWashSummary } from './KioskWashSummary';
 
@@ -10,7 +12,7 @@ import { KioskWashSummary } from './KioskWashSummary';
  * @param evaluating false while the link to Java, the PC or the camera is down: the last guidance is
  *   then stale, so it is hidden and the panel says the wash is not being evaluated (R-01).
  */
-export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
+export function KioskProgress({ evaluating = true, detected = null }: { evaluating?: boolean; detected?: DetectedSummary | null }) {
   const active = useSessionStore((state) => state.isActive);
   const current = useSessionStore((state) => state.currentStep);
   const mode = useSessionStore((state) => state.modoEvaluacion);
@@ -36,6 +38,7 @@ export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
             : active ? 'Estado recibido de Java' : summary ? 'Sesión finalizada' : 'Esperando sesión'}
         </span>
       </div>
+      {evaluating && detected && <LiveStepLine detected={detected} />}
       {active && evaluating && evaluation && <KioskGuidance evaluation={evaluation} />}
       {evaluation && <KioskWashSummary evaluation={evaluation} />}
       {!(evaluation && (evaluation.estadoIntento === 'COMPLETO_PARCIAL' || evaluation.estadoIntento === 'INTERRUMPIDO')) && <ol>
@@ -55,8 +58,12 @@ export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
                 {inEvaluation.includes(index + 1) && <small className="kiosk-step-evaluation">En evaluación</small>}
                 {currentStep && <small>{assessment?.estado === 'REQUIERE_REPETICION' ? 'Corrección pendiente' : 'En curso'} · Java</small>}
                 {observed && <small>{assessment ? 'Validado' : 'Observado'} · Java</small>}
-                {assessment && assessment.estado !== 'PENDIENTE'
-                  && <small>{formatSeconds(assessment.tiempoAcreditadoMs)} / {assessment.minimoRequeridoMs / 1000} s observados</small>}
+                {assessment && assessment.estado !== 'PENDIENTE' && <>
+                  <small>{formatSeconds(assessment.tiempoAcreditadoMs)} / {assessment.minimoRequeridoMs / 1000} s observados</small>
+                  <span className="kiosk-step-meter" aria-hidden="true">
+                    <span style={{ width: `${Math.min(100, Math.round(100 * assessment.tiempoAcreditadoMs / Math.max(1, assessment.minimoRequeridoMs)))}%` }} />
+                  </span>
+                </>}
               </span>
             </li>
           );
@@ -64,5 +71,22 @@ export function KioskProgress({ evaluating = true }: { evaluating?: boolean }) {
       </ol>}
       <p className="kiosk-scope-note">Progreso informativo; este piloto no certifica cumplimiento clínico.</p>
     </section>
+  );
+}
+
+/** What the PC sees right now and what comes next, from the same frames the boxes are drawn on. */
+function LiveStepLine({ detected }: { detected: DetectedSummary }) {
+  const seen = stepNumber(detected.step);
+  const next = detected.expected > 0 ? `Paso ${detected.expected} · ${STEP_NAMES[detected.expected - 1]}` : 'Lavado completo';
+  return (
+    <div className={`kiosk-live-step${detected.error ? ' is-error' : seen ? ' is-seen' : ''}`} role="status">
+      <span className="kiosk-live-step-now">
+        {detected.error ? 'Paso fuera de orden: se reinicia desde Palmas'
+          : seen ? `Detectando: Paso ${seen} · ${STEP_NAMES[seen - 1]}${detected.confidence !== null ? ` (${Math.round(detected.confidence * 100)} %)` : ''}`
+            : detected.hands > 0 ? 'Manos detectadas; esperando un paso' : 'Sin manos a la vista'}
+      </span>
+      <span className="kiosk-live-step-next">Sigue: {next}</span>
+      <span className="kiosk-live-step-bar" aria-hidden="true"><span style={{ width: `${Math.round(100 * detected.current / 6)}%` }} /></span>
+    </div>
   );
 }

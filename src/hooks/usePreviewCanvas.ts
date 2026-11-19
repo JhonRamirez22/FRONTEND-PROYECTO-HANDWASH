@@ -6,7 +6,11 @@ const LIVE_WINDOW_MS = 3_000;
 const OVERLAY_FRESH_MS = 700;
 const RETRY_MS = [1_000, 2_000, 4_000];
 
-export interface DetectedSummary { step: string | null; confidence: number | null; hands: number }
+export interface DetectedSummary {
+  step: string | null; confidence: number | null; hands: number;
+  /** Steps done so far, the step expected next (0 = complete) and whether the last one was out of order. */
+  current: number; expected: number; error: boolean;
+}
 
 export interface PreviewCanvas {
   /** Gives the hook the <canvas> it draws on (a callback ref). */
@@ -82,10 +86,10 @@ export function usePreviewCanvas(
         if (!parsed) return;
         overlay = parsed;
         overlayAt = Date.now();
-        const summary = `${parsed.step ?? ''}|${parsed.conf ?? ''}|${parsed.hands.length}`;
+        const summary = `${parsed.step ?? ''}|${parsed.conf ?? ''}|${parsed.hands.length}|${parsed.cur}|${parsed.exp}|${parsed.err}`;
         if (summary !== lastSummary) {
           lastSummary = summary;
-          setDetected({ step: parsed.step, confidence: parsed.conf, hands: parsed.hands.length });
+          setDetected({ step: parsed.step, confidence: parsed.conf, hands: parsed.hands.length, current: parsed.cur, expected: parsed.exp, error: parsed.err });
         }
         requestPaint();
       } else if (data instanceof ArrayBuffer) {

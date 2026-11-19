@@ -1215,3 +1215,12 @@
 .camera-phone-checks li.is-ok { color: var(--hw-ink); }
 .camera-phone-checks li.is-ok::before { background: var(--hw-data); }
 .camera-phone-detail { padding: 10px 12px; border: 1px solid #f0c6c0; border-radius: 6px; background: #ffedea; color: #831c1e !important; font-size: 13px !important; overflow-wrap: anywhere; }
+
+.kiosk-live-step { display: grid; gap: 4px; padding: 10px 12px; margin: 0 0 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 14px; }
+.kiosk-live-step.is-seen { border-color: #9fd3b8; background: #e8f5ee; color: #1f5f3f; }
+.kiosk-live-step.is-error { border-color: #e5d3a4; background: #fffbeb; color: #92400e; }
+.kiosk-live-step-now { font-weight: 600; }
+.kiosk-live-step-next { font-size: 13px; opacity: 0.85; }
+.kiosk-live-step-bar, .kiosk-step-meter { display: block; height: 4px; border-radius: 2px; background: #e6e8ec; overflow: hidden; }
+.kiosk-live-step-bar > span, .kiosk-step-meter > span { display: block; height: 100%; background: #247b50; transition: width 0.3s ease; }
+.kiosk-step-meter { margin-top: 4px; width: 100%; }
