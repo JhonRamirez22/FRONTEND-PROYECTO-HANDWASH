@@ -1208,3 +1208,10 @@
 .live-health-item div { display: grid; }
 .live-health-item span { color: var(--hw-muted); font-size: 13px; }
 @media (max-width: 720px) { .live-panel { padding: 0 16px 32px; } }
+
+.camera-phone-checks { display: grid; gap: 6px; margin: 0; padding: 12px 14px; list-style: none; border: 1px solid var(--hw-border); border-radius: 8px; background: #fff; font-size: 14px; }
+.camera-phone-checks li { display: flex; align-items: center; gap: 10px; color: var(--hw-muted); }
+.camera-phone-checks li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #b6bbc2; }
+.camera-phone-checks li.is-ok { color: var(--hw-ink); }
+.camera-phone-checks li.is-ok::before { background: var(--hw-data); }
+.camera-phone-detail { padding: 10px 12px; border: 1px solid #f0c6c0; border-radius: 6px; background: #ffedea; color: #831c1e !important; font-size: 13px !important; overflow-wrap: anywhere; }

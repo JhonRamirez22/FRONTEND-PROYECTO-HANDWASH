@@ -6,6 +6,7 @@ import type { WebRtcAccess } from '@/lib/StationApi';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 
 const TOKEN_KEY = 'handwash.camera.token';
+const defaultApi = new CameraPairingApi();
 
 type Phase = 'redeeming' | 'opening' | 'waiting' | 'sending' | 'reconnecting' | 'replaced' | 'expired' | 'no-permission' | 'no-code' | 'error';
 
@@ -54,14 +55,22 @@ const DETAIL: Record<Phase, string> = {
 
 /** The page a phone opens from the panel's QR: it publishes its camera to the station's PC, nothing else. */
 export function CameraPhonePage({
-  api = new CameraPairingApi(), openCamera = defaultOpenCamera, makeSupervisor = defaultSupervisor, pollMs = 2_000,
+  api = defaultApi, openCamera = defaultOpenCamera, makeSupervisor = defaultSupervisor, pollMs = 2_000,
 }: CameraPhonePageProps) {
   const [phase, setPhase] = useState<Phase>('redeeming');
   const [stationName, setStationName] = useState('');
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [token, setToken] = useState<string | null>(null);
+  const [checks, setChecks] = useState({ paired: false, camera: false, session: false, link: false });
+  const [detail, setDetail] = useState('');
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const apiRef = useRef(api);
+  const makeSupervisorRef = useRef(makeSupervisor);
+  const openCameraRef = useRef(openCamera);
+  apiRef.current = api;
+  makeSupervisorRef.current = makeSupervisor;
+  openCameraRef.current = openCamera;
   useScreenWakeLock(stream !== null && (phase === 'sending' || phase === 'waiting' || phase === 'reconnecting'));
 
   // 1. The QR code (once) or the token kept from a previous scan on this phone.
@@ -74,27 +83,30 @@ export function CameraPhonePage({
       return undefined;
     }
     window.history.replaceState(null, '', `${window.location.pathname}#/camera`);
-    api.redeem(code).then((paired) => {
+    apiRef.current.redeem(code).then((paired) => {
       if (!alive) return;
       try { window.sessionStorage.setItem(TOKEN_KEY, paired.token); } catch { /* the page still works until it is closed */ }
       setStationName(paired.stationName);
+      setChecks((current) => ({ ...current, paired: true }));
       setToken(paired.token);
     }).catch((cause: unknown) => {
-      if (alive) { setPhase('expired'); setStationName(cause instanceof Error ? cause.message : ''); }
+      if (alive) { setPhase('expired'); setDetail(cause instanceof Error ? cause.message : 'No se pudo canjear el código.'); }
     });
     return () => { alive = false; };
-  }, [api]);
+  }, []);
 
   // 2. The camera.
   const openFacing = useCallback(async (wanted: 'environment' | 'user') => {
     try {
-      const opened = await openCamera(wanted);
+      const opened = await openCameraRef.current(wanted);
       setStream((previous) => { previous?.getTracks().forEach((track) => track.stop()); return opened; });
+      setChecks((current) => ({ ...current, camera: true }));
       setPhase('waiting');
     } catch (cause) {
+      setDetail(cause instanceof Error ? `${cause.name}: ${cause.message}` : 'No se pudo abrir la cámara.');
       setPhase(cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'no-permission' : 'error');
     }
-  }, [openCamera]);
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -114,23 +126,25 @@ export function CameraPhonePage({
     let alive = true;
     let currentSession: string | null = null;
     let stopRelay: (() => void) | null = null;
-    const supervisor = makeSupervisor(async (sessionId) => {
-      const result = await api.ticket(token);
+    const supervisor = makeSupervisorRef.current(async (sessionId) => {
+      const result = await apiRef.current.ticket(token);
       if (result.kind !== 'ready' || result.sessionId !== sessionId) throw new Error('La sesión cambió');
       return result.access;
     });
     const stopAll = () => { stopRelay?.(); stopRelay = null; currentSession = null; };
     const poll = async () => {
-      const state = await api.state(token);
+      const state = await apiRef.current.state(token);
       if (!alive) return;
       if (state.kind === 'replaced') { stopAll(); setPhase('replaced'); return; }
       if (state.kind === 'expired') { stopAll(); setPhase('expired'); return; }
-      if (state.kind === 'waiting') { if (currentSession) stopAll(); setPhase((p) => (p === 'sending' || p === 'reconnecting' ? 'waiting' : p)); return; }
+      if (state.kind === 'waiting') { setChecks((current) => ({ ...current, session: false, link: false })); if (currentSession) stopAll(); setPhase((p) => (p === 'sending' || p === 'reconnecting' ? 'waiting' : p)); return; }
+      setChecks((current) => ({ ...current, session: true }));
       if (state.sessionId !== currentSession) {
         stopRelay?.();
         currentSession = state.sessionId;
         stopRelay = supervisor.run(state.sessionId, stream, (relayState) => {
           if (!alive) return;
+          setChecks((current) => ({ ...current, link: relayState === 'connected' }));
           setPhase(relayState === 'connected' ? 'sending' : 'reconnecting');
         });
       }
@@ -138,7 +152,7 @@ export function CameraPhonePage({
     void poll();
     const timer = window.setInterval(() => void poll(), pollMs);
     return () => { alive = false; window.clearInterval(timer); stopAll(); };
-  }, [token, stream, api, makeSupervisor, pollMs]);
+  }, [token, stream, pollMs]);
 
   const live = phase === 'sending' || phase === 'waiting' || phase === 'reconnecting';
   return (
@@ -150,6 +164,13 @@ export function CameraPhonePage({
       <section className="camera-phone-body">
         <h1>{HEADLINE[phase]}</h1>
         <p role="status">{DETAIL[phase]}</p>
+        {detail && <p className="camera-phone-detail" role="alert">{detail}</p>}
+        <ul className="camera-phone-checks" aria-label="Estado de la conexión">
+          <li className={checks.paired ? 'is-ok' : ''}>Código del panel</li>
+          <li className={checks.camera ? 'is-ok' : ''}>Cámara del celular</li>
+          <li className={checks.session ? 'is-ok' : ''}>Sesión del puesto</li>
+          <li className={checks.link ? 'is-ok' : ''}>Enlace con el PC</li>
+        </ul>
         {live && <div className="camera-phone-preview">
           <video ref={videoRef} autoPlay muted playsInline aria-label="Vista previa de la cámara" />
           <span className={`camera-phone-badge is-${phase}`}>{phase === 'sending' ? 'Enviando' : phase === 'waiting' ? 'Lista' : 'Reconectando'}</span>

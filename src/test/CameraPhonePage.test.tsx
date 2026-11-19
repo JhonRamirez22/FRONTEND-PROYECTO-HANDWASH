@@ -54,3 +54,22 @@ describe('CameraPhonePage', () => {
     expect(await screen.findByText(/permiso de cámara/i)).toBeTruthy();
   });
 });
+
+describe('CameraPhonePage stability', () => {
+  afterEach(() => { cleanup(); window.sessionStorage.clear(); window.location.hash = ''; });
+
+  it('keeps one relay for the session even when the parent re-renders with new dependency objects', async () => {
+    window.sessionStorage.setItem('handwash.camera.token', TOKEN);
+    const stop = vi.fn();
+    const run = vi.fn(() => stop);
+    const props = () => ({ api: fakeApi(), openCamera: async () => stream, makeSupervisor: () => ({ run }), pollMs: 10 });
+
+    const { rerender } = render(<CameraPhonePage {...props()} />);
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    for (let i = 0; i < 5; i += 1) rerender(<CameraPhonePage {...props()} />);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(stop).not.toHaveBeenCalled();
+  });
+});
