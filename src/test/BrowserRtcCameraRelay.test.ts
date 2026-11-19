@@ -73,6 +73,25 @@ describe('browser WebRTC signaling', () => {
     delete (window as unknown as { __HANDWASH_CONFIG__?: unknown }).__HANDWASH_CONFIG__;
   });
 
+  it('caps the phone camera bitrate and frame rate so the relay does not queue frames', async () => {
+    const setParameters = vi.fn(async () => undefined);
+    const sender = { getParameters: () => ({ encodings: [{}] }), setParameters };
+    class SenderPeer extends FakePeer { addTrack() { return sender as unknown as RTCRtpSender; } }
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal('RTCPeerConnection', SenderPeer);
+    const track = { readyState: 'live' } as MediaStreamTrack;
+    const stream = { getVideoTracks: () => [track] } as unknown as MediaStream;
+
+    const connecting = new BrowserRtcCameraRelay().connect('s-cap', stream, () => {});
+    await vi.waitFor(() => expect(FakeSocket.last?.onopen).toBeTypeOf('function'));
+    FakeSocket.last.open();
+    (await connecting)();
+
+    await vi.waitFor(() => expect(setParameters).toHaveBeenCalled());
+    const sent = (setParameters.mock.calls[0] as unknown as [{ encodings: Array<Record<string, number>> }])[0];
+    expect(sent.encodings[0]).toMatchObject({ maxBitrate: 2_500_000, maxFramerate: 24 });
+  });
+
   it('relays trickled ICE but never sends the null end-of-gathering candidate Java rejects', async () => {
     vi.stubGlobal('WebSocket', FakeSocket);
     vi.stubGlobal('RTCPeerConnection', FakePeer);

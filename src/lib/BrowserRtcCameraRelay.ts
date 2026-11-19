@@ -41,6 +41,21 @@ export function parseProducerTelemetry(value: unknown): ProducerTelemetry | null
   };
 }
 
+/** A phone can send more video than the PC needs; capping bitrate and frame rate keeps the relay from queueing frames. */
+export const SENDER_LIMITS = { maxBitrate: 2_500_000, maxFramerate: 24 } as const;
+
+async function capSender(sender: RTCRtpSender | undefined): Promise<void> {
+  try {
+    if (!sender || typeof sender.getParameters !== 'function') return;
+    const parameters = sender.getParameters();
+    const encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+    Object.assign(encodings[0]!, SENDER_LIMITS);
+    await sender.setParameters({ ...parameters, encodings });
+  } catch {
+    // Some browsers refuse parameter changes; the default encoding still works.
+  }
+}
+
 /** Sends only the browser's live video track to the authenticated RTX peer; it never records media. */
 export class BrowserRtcCameraRelay {
   /** Where the ticket comes from: the station by default, the operator console when a phone or Mac without a station publishes. */
@@ -73,7 +88,10 @@ export class BrowserRtcCameraRelay {
       statusChannel.onmessage = (event) => {
         if (!disposed && activePeer === peer) onTelemetry?.(parseProducerTelemetry(event.data));
       };
-      for (const track of stream.getVideoTracks()) activePeer.addTrack(track, stream);
+      for (const track of stream.getVideoTracks()) {
+        (track as MediaStreamTrack & { contentHint?: string }).contentHint = 'motion';
+        void capSender(activePeer.addTrack(track, stream));
+      }
       // Java signaling only relays textual candidates and closes the socket on
       // `candidate: null`; aiortc, as the controlled side, does not need it.
       activePeer.onicecandidate = ({ candidate }) => {
