@@ -22,9 +22,9 @@ const MESSAGES: Record<KioskGuideCode, (guide: KioskGuide) => KioskGuideText> = 
   SIGUE_EL_ORDEN: (g) => ({ title: `Orden: primero ${label(g)}`, detail: 'Haz los movimientos en el orden indicado.' }),
   MUESTRA_AMBAS_MANOS: () => ({ title: 'Muestra ambas manos', detail: 'Mantén las dos manos dentro del recuadro.' }),
   MANTEN_EL_MOVIMIENTO: (g) => ({ title: `Mantén el movimiento: ${label(g)}`, detail: 'Frota de forma continua y visible.' }),
-  LAVADO_COMPLETO: () => ({ title: 'Lavado completo', detail: 'Los seis movimientos se validaron y quedaron registrados.' }),
+  LAVADO_COMPLETO: () => ({ title: '¡Lavado exitoso!', detail: 'Los seis movimientos se completaron.' }),
   LAVADO_INCOMPLETO: () => ({ title: 'Lavado incompleto', detail: 'Faltaron movimientos. Quedó registrado como incompleto.' }),
-  REINICIA_LAVADO: () => ({ title: 'Reinicia el lavado', detail: 'Empieza de nuevo con Palmas.' }),
+  REINICIA_LAVADO: () => ({ title: 'Movimiento incorrecto: reinicia el lavado', detail: 'Empieza de nuevo con Palmas y sigue el orden.' }),
   ESPERA_TECNICA: () => ({ title: 'Un momento', detail: 'Problema técnico del puesto; no es un error tuyo. Avisa al operador si continúa.' }),
 };
 
