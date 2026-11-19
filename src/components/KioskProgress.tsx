@@ -38,7 +38,7 @@ export function KioskProgress({ evaluating = true, detected = null }: { evaluati
             : active ? 'Estado recibido de Java' : summary ? 'Sesión finalizada' : 'Esperando sesión'}
         </span>
       </div>
-      {evaluating && detected && <LiveStepLine detected={detected} />}
+      {evaluating && detected && <LiveStepLine detected={detected} credit={creditOf(evaluation?.pasos.find((item) => item.estado === 'EN_CURSO' || item.estado === 'REQUIERE_REPETICION'))} />}
       {active && evaluating && evaluation && <KioskGuidance evaluation={evaluation} />}
       {evaluation && <KioskWashSummary evaluation={evaluation} />}
       {!(evaluation && (evaluation.estadoIntento === 'COMPLETO_PARCIAL' || evaluation.estadoIntento === 'INTERRUMPIDO')) && <ol>
@@ -75,7 +75,19 @@ export function KioskProgress({ evaluating = true, detected = null }: { evaluati
 }
 
 /** What the PC sees right now and what comes next, from the same frames the boxes are drawn on. */
-function LiveStepLine({ detected }: { detected: DetectedSummary }) {
+export interface Credit { step: number; percent: number; seconds: number; required: number }
+
+export function creditOf(assessment: { paso: string; tiempoAcreditadoMs: number; minimoRequeridoMs: number } | undefined): Credit | null {
+  if (!assessment || assessment.minimoRequeridoMs <= 0) return null;
+  const step = Number(/PASO_(\d)/.exec(assessment.paso)?.[1] ?? 0);
+  if (step < 1 || step > 6) return null;
+  return {
+    step, seconds: assessment.tiempoAcreditadoMs / 1000, required: assessment.minimoRequeridoMs / 1000,
+    percent: Math.max(0, Math.min(100, Math.round(100 * assessment.tiempoAcreditadoMs / assessment.minimoRequeridoMs))),
+  };
+}
+
+export function LiveStepLine({ detected, credit }: { detected: DetectedSummary; credit: Credit | null }) {
   const seen = stepNumber(detected.step);
   const next = detected.expected > 0 ? `Paso ${detected.expected} · ${STEP_NAMES[detected.expected - 1]}` : 'Lavado completo';
   return (
@@ -85,6 +97,10 @@ function LiveStepLine({ detected }: { detected: DetectedSummary }) {
           : seen ? `Detectando: Paso ${seen} · ${STEP_NAMES[seen - 1]}${detected.confidence !== null ? ` (${Math.round(detected.confidence * 100)} %)` : ''}`
             : detected.hands > 0 ? 'Manos detectadas; esperando un paso' : 'Sin manos a la vista'}
       </span>
+      {credit && !detected.error && <span className="kiosk-live-step-credit">
+        <strong>{credit.percent} %</strong> del Paso {credit.step} · {STEP_NAMES[credit.step - 1]} ({credit.seconds.toFixed(1)} / {credit.required.toFixed(0)} s)
+        <span className="kiosk-step-meter big" aria-hidden="true"><span style={{ width: `${credit.percent}%` }} /></span>
+      </span>}
       <span className="kiosk-live-step-next">Sigue: {next}</span>
       <span className="kiosk-live-step-bar" aria-hidden="true"><span style={{ width: `${Math.round(100 * detected.current / 6)}%` }} /></span>
     </div>

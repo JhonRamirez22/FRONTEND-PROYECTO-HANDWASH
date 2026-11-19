@@ -21,3 +21,20 @@ describe('KioskProgress live line', () => {
     expect(screen.queryByText(/Detectando/)).toBeNull();
   });
 });
+
+import { LiveStepLine, creditOf } from '@/components/KioskProgress';
+
+describe('step meter', () => {
+  it('turns what Java credits into a percentage of the minimum time', () => {
+    expect(creditOf({ paso: 'PASO_1_PALMAS', tiempoAcreditadoMs: 2500, minimoRequeridoMs: 5000 }))
+      .toEqual({ step: 1, percent: 50, seconds: 2.5, required: 5 });
+    expect(creditOf({ paso: 'PASO_2_DORSOS', tiempoAcreditadoMs: 9000, minimoRequeridoMs: 5000 })?.percent).toBe(100);
+    expect(creditOf(undefined)).toBeNull();
+    expect(creditOf({ paso: 'FONDO', tiempoAcreditadoMs: 1, minimoRequeridoMs: 5000 })).toBeNull();
+  });
+  it('shows the percentage and the seconds next to the detected step', () => {
+    render(<LiveStepLine detected={{ ...base, step: 'Paso1_Palmas' }} credit={{ step: 1, percent: 50, seconds: 2.5, required: 5 }} />);
+    expect(screen.getByText('50 %')).toBeTruthy();
+    expect(screen.getByText(/2\.5 \/ 5 s/)).toBeTruthy();
+  });
+});
