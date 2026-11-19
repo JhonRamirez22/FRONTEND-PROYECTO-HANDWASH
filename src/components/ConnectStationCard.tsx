@@ -1,18 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { Check, Clipboard, LoaderCircle, Plus } from 'lucide-react';
+import { Check, LoaderCircle, Plus } from 'lucide-react';
 import type { ConnectedStation } from '@/lib/connectStation';
+import { StationLinkActions, type IssuedStationLink } from './StationLinkActions';
 
 interface ConnectStationCardProps {
   onConnect: (name: string) => Promise<ConnectedStation>;
-  /** Link the Mac's operator opens; shown as step 2. */
-  operatorUrl: string;
+  onIssueLink: (stationId: string, mac: boolean) => Promise<IssuedStationLink>;
+  /** Where the console is served; the links are built from it. */
+  origin: string;
 }
 
-export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCardProps) {
+export function ConnectStationCard({ onConnect, onIssueLink, origin }: ConnectStationCardProps) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [connected, setConnected] = useState<ConnectedStation | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -20,7 +21,6 @@ export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCar
     if (busy || !name.trim()) return;
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       setConnected(await onConnect(name.trim()));
       setName('');
@@ -31,18 +31,12 @@ export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCar
     }
   }
 
-  async function copy() {
-    if (!connected) return;
-    try { await navigator.clipboard.writeText(connected.key); setNotice('Key copiada.'); }
-    catch { setError('No se pudo copiar automáticamente. Selecciónala y cópiala a mano.'); }
-  }
-
   return (
     <section className="admin-data-section connect-station" aria-labelledby="connect-station-title">
       <div className="admin-section-header">
         <div className="admin-section-title"><Plus className="h-4 w-4" /><h2 id="connect-station-title">Conectar un puesto</h2></div>
       </div>
-      <p className="admin-data-footnote">Escribe el nombre del lavamanos. Te damos la key para el Mac del puesto; el PC con YOLO se conecta solo, sin key.</p>
+      <p className="admin-data-footnote">Escribe el nombre del lavamanos. Te damos un enlace para su Mac: al abrirlo ya funciona, sin escribir keys. El PC con YOLO se conecta solo.</p>
 
       <form className="station-code-form" onSubmit={(event) => void submit(event)}>
         <div>
@@ -59,18 +53,13 @@ export function ConnectStationCard({ onConnect, operatorUrl }: ConnectStationCar
 
       {connected && <div className="connect-station-result" role="status" aria-live="polite">
         <h3>“{connected.stationName}” está listo</h3>
-        <p className="connect-station-warning">Esta key solo se muestra una vez. Cópiala ahora y entrégala por un canal privado.</p>
-        <div className="connect-station-key">
-          <code>{connected.key}</code>
-          <button className="button-quiet" type="button" onClick={() => void copy()}><Clipboard className="h-4 w-4" />Copiar key</button>
-        </div>
-        {notice && <p className="station-admin-notice">{notice}</p>}
         <ol className="connect-station-steps">
+          <li><strong>En el Mac del lavamanos:</strong> genera el enlace, ábrelo en ese Mac y listo.</li>
           <li><strong>En el PC con YOLO:</strong> ejecuta <code>INICIAR-HANDWASH</code>. Muestra un código; apruébalo abajo en “PCs esperando”. Después se conecta solo.</li>
-          <li><strong>En el Mac del lavamanos:</strong> abre <a href={operatorUrl}>{operatorUrl}</a>, pega esta key y pulsa “Vincular cámara”.</li>
         </ol>
-        <button className="button-quiet" type="button" onClick={() => { setConnected(null); setNotice(null); }}>
-          <Check className="h-4 w-4" />Ya la guardé
+        <StationLinkActions stationId={connected.stationId} stationName={connected.stationName} origin={origin} onIssue={onIssueLink} />
+        <button className="button-quiet" type="button" onClick={() => setConnected(null)}>
+          <Check className="h-4 w-4" />Listo
         </button>
       </div>}
     </section>

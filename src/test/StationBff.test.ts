@@ -705,6 +705,23 @@ describe('operator API key session through the BFF', () => {
       expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ code: phoneCode });
     });
 
+    it('a Mac link also makes the browser the station screen: the credential goes into the station cookie, never into JSON', async () => {
+      const credential = 'c'.repeat(48);
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+        sessionToken, expiresAtEpochMs: Date.now() + 3_600_000, stationId, stationName: 'Lavamanos A', label: 'Enlace del puesto',
+        stationCredential: credential, macAlreadyLinked: false,
+      }), { status: 200 }));
+      const response = await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: phoneCode }, guarded));
+      const payload = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(payload).toMatchObject({ stationLinked: true, macAlreadyLinked: false });
+      expect(JSON.stringify(payload)).not.toContain(credential);
+      const cookies = response.headers.get('set-cookie') ?? '';
+      expect(cookies).toContain(`hw_operator_key_session=${sessionToken}`);
+      expect(cookies).toContain(credential);
+    });
+
     it('refuses a malformed code without calling Java and passes a wrong one back as 401', async () => {
       expect((await operatorPhoneLogin(request('/api/operator?action=phone-login', 'POST', { code: 'nope' }, guarded))).status).toBe(400);
       expect(vi.mocked(fetch)).not.toHaveBeenCalled();
