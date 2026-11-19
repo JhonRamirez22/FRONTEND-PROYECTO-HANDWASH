@@ -18,8 +18,9 @@ const PHONE_CODE = /^[A-Za-z0-9_-]{40,64}$/;
 
 /** The one-time code in a QR link such as #/operator?phone=CODE; null for any other hash. */
 export function phoneCodeFromHash(hash: string): string | null {
-  if (!hash.startsWith('#/operator?')) return null;
-  const code = new URLSearchParams(hash.slice('#/operator?'.length)).get('phone');
+  const prefix = ['#/operator?', '#/panel?'].find((candidate) => hash.startsWith(candidate));
+  if (!prefix) return null;
+  const code = new URLSearchParams(hash.slice(prefix.length)).get('phone');
   return code !== null && PHONE_CODE.test(code) ? code : null;
 }
 
