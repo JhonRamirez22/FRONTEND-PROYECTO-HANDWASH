@@ -96,7 +96,7 @@ export function AdminChangeControlPanel({ onSignOut }: { onSignOut: () => void }
                   <td>v{change.perfil.version}{isCurrent && <strong> · vigente</strong>}{change.revertidoDe !== null && <small> (copia de v{change.revertidoDe})</small>}</td>
                   <td className="whitespace-nowrap">{dateText(change.perfil.creadoEnEpochMs)}</td>
                   <td>{change.perfil.creadoPor === 'SYSTEM' ? 'Sistema' : change.perfil.creadoPor.slice(0, 8)}</td>
-                  <td>{change.motivo ?? '—'}<small className="block text-slate-500">{(change.perfil.duracionTotalMs / 1000).toLocaleString('es-CO')} s en total</small></td>
+                  <td>{change.motivo ?? '—'}<small className="block text-muted-foreground">{(change.perfil.duracionTotalMs / 1000).toLocaleString('es-CO')} s en total</small></td>
                   <td>{STATE_LABEL[change.estado]}{change.decididoPor && <small className="block">por {change.decididoPor.slice(0, 8)}</small>}</td>
                   <td>{change.conInformeDeValidacion ? 'Con informe' : 'Sin informe'}</td>
                   <td>

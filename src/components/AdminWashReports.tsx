@@ -197,7 +197,7 @@ export function AdminWashReports({ onSignOut, now = Date.now }: AdminWashReports
                         {report.pasos.length - missing.length}/{report.pasos.length}
                       </span>
                       {missing.length > 0 && (
-                        <span className="mt-1 block text-slate-500">
+                        <span className="mt-1 block text-muted-foreground">
                           Faltó: {missing.map((step) => STEP_LABELS[step.paso] ?? step.paso).join(', ')}
                         </span>
                       )}

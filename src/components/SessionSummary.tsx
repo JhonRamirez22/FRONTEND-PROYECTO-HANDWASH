@@ -36,18 +36,18 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
   };
 
   return (
-    <div className="neumorphic rounded-2xl p-6">
+    <div className="neumorphic rounded-lg p-6">
       <div className="mb-6 text-center">
         <div
           role="img"
           aria-label={approved ? 'Procedimiento validado' : sequenceCompleted ? 'Secuencia parcial completada' : 'Sesión incompleta'}
           className={cn(
-            'mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full transition-all duration-500',
+            'mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full transition-colors duration-500',
             approved
-              ? 'bg-success/10 text-success shadow-neumorphic-sm'
+              ? 'bg-success/10 text-success'
               : sequenceCompleted
-                ? 'bg-warning/10 text-warning shadow-neumorphic-sm'
-                : 'bg-destructive/10 text-destructive shadow-neumorphic-sm'
+                ? 'bg-warning/10 text-warning'
+                : 'bg-destructive/10 text-destructive'
           )}
         >
           {approved ? (
@@ -71,14 +71,14 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
       </div>
 
       {sequenceCompleted && !deploymentStatus.clinicalDecisionAllowed && (
-        <div role="alert" className="mb-6 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm">
+        <div role="alert" className="mb-6 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm">
           <p className="font-semibold text-foreground">Resultado informativo; no es una aprobación clínica</p>
           <p className="mt-1 text-muted-foreground">{deploymentStatus.notice}</p>
         </div>
       )}
 
       {!procedureValidated && summary.accionesNoDetectadas?.length ? (
-        <div className="mb-6 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm">
+        <div className="mb-6 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm">
           <p className="font-semibold text-foreground">Evaluación parcial</p>
           <p className="mt-1 text-muted-foreground">
             {summary.modoEvaluacion === 'PROTOCOLO_OMS' && summary.resultado?.startsWith('SECUENCIA_OMS_COMPLETADA')
@@ -89,7 +89,7 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
       ) : null}
 
       {summary.modoEvaluacion === 'PROTOCOLO_OMS' && (
-        <div className="mb-6 rounded-xl border border-border/60 bg-muted/20 p-4">
+        <div className="mb-6 rounded-lg border border-border/60 bg-muted/20 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">Predicción visual de espuma</h3>
             <span className={cn(
@@ -127,7 +127,7 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
       )}
 
       {(summary.intentosReiniciados ?? 0) > 0 && (
-        <div className="mb-6 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm">
+        <div className="mb-6 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm">
           <p className="font-semibold text-foreground">Reintentos realizados: {summary.intentosReiniciados}</p>
           <p className="mt-1 text-muted-foreground">
             Los intentos incorrectos se conservaron en el historial y no se mezclaron con el último intento.
@@ -139,7 +139,7 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-muted-foreground ">
               Score promedio de confianza recibida
             </h3>
           </div>
@@ -149,7 +149,7 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
         </div>
         <div className="h-3 overflow-hidden rounded-full bg-muted/50 neumorphic-inset">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+            className="h-full rounded-full bg-primary transition-colors duration-700 ease-out"
             style={{ width: `${summary.confianzaPromedio * 100}%` }}
           />
         </div>
@@ -159,16 +159,16 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
       </div>
 
       <div className="mb-6">
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground ">
           Tiempo por Paso
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {Object.entries(summary.tiempoPorPaso).map(([step, seconds]) => (
             <div
               key={step}
-              className="rounded-xl bg-muted/30 px-3 py-2 text-center transition-colors hover:bg-muted/50"
+              className="rounded-lg bg-muted/30 px-3 py-2 text-center transition-colors hover:bg-muted/50"
             >
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="block text-xs font-semibold  text-muted-foreground">
                 {STEP_LABELS[step as HandWashStep] ?? step}
               </span>
               <span className="font-mono text-sm font-bold text-foreground">
@@ -183,7 +183,7 @@ export function SessionSummary({ deploymentStatus }: SessionSummaryProps) {
         <div>
           <div className="mb-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-muted-foreground ">
               Infracciones ({summary.infracciones.length})
             </h3>
           </div>

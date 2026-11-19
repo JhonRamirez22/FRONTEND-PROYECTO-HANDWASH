@@ -19,7 +19,7 @@ export function InfractionsLog() {
   };
 
   return (
-    <div className="neumorphic rounded-2xl p-5">
+    <div className="neumorphic rounded-lg p-5">
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ShieldAlert className="h-5 w-5 text-destructive" />
@@ -36,7 +36,7 @@ export function InfractionsLog() {
 
       {infractions.length === 0 ? (
         <div className={cn(
-          'rounded-xl px-4 py-8 text-center',
+          'rounded-lg px-4 py-8 text-center',
           isActive ? 'bg-success/5 border border-success/20' : 'bg-muted/50'
         )}>
           <div className={cn(
@@ -57,7 +57,7 @@ export function InfractionsLog() {
           {infractions.map((infraction, index) => (
             <div
               key={`${infraction.timestamp}-${index}`}
-              className="group flex items-start gap-3 rounded-xl border border-destructive/15 bg-destructive/5 p-3 transition-all duration-200 hover:bg-destructive/10 hover:border-destructive/25"
+              className="group flex items-start gap-3 rounded-lg border border-destructive/15 bg-destructive/5 p-3 transition-colors duration-200 hover:bg-destructive/10 hover:border-destructive/25"
             >
               <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-destructive/15 text-destructive transition-transform group-hover:scale-110">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -67,7 +67,7 @@ export function InfractionsLog() {
                   <span className="text-sm font-semibold text-destructive">
                     {STEP_LABELS[infraction.step as HandWashStep] ?? infraction.step}
                   </span>
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono font-bold text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-mono font-bold text-muted-foreground">
                     {formatTime(infraction.timestamp)}
                   </span>
                 </div>

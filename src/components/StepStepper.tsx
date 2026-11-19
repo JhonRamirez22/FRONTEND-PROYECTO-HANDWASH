@@ -101,7 +101,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
   const intentionDetail = intentionMessages[intentionReason] ?? intentionReason;
 
   return (
-    <div className="neumorphic stepper-panel rounded-2xl p-5">
+    <div className="neumorphic stepper-panel rounded-lg p-5">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="font-heading text-lg font-semibold text-card-foreground">
           {mode === 'PROTOCOLO_OMS' ? 'Lavado OMS: agua y jabón' : 'Movimientos de fricción'}
@@ -160,13 +160,13 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       )}
 
       {isActive && mode === 'FRICCION_PARCIAL' && frictionSequenceObservedComplete && (
-        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-foreground" role="status" aria-live="polite">
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-foreground" role="status" aria-live="polite">
           Se observaron los seis movimientos de fricción. Esto no verifica el lavado OMS completo ni constituye aprobación clínica.
         </div>
       )}
 
       {retries > 0 && isActive && (
-        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status" aria-live="polite">
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status" aria-live="polite">
           <p className="font-semibold">Intento reiniciado {retries} {retries === 1 ? 'vez' : 'veces'}.</p>
           {lastRetryError && <p className="mt-1">{lastRetryError}</p>}
           <p className="mt-1">Empieza otra vez por {mode === 'PROTOCOLO_OMS' ? 'Mojar las manos' : 'Palmas'}.</p>
@@ -225,7 +225,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
                 </span>
                 {status === 'active' && <span className="step-confirmed-label">Estado Java: {evaluation?.pasos.find((item) => item.paso === step)?.estado === 'REQUIERE_REPETICION' ? 'corrección pendiente' : 'en curso'}</span>}
                 {status === 'infraction' && (
-                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive uppercase">
+                  <span className="ml-2 inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-2 py-0.5 text-xs font-bold text-destructive">
                     Infraccion
                   </span>
                 )}
@@ -238,11 +238,11 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       {mode === 'PROTOCOLO_OMS' && (
         <div className="mt-5 border-t border-border/60 pt-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-xs font-bold  text-muted-foreground">
               Predicción visual de espuma por región
             </h3>
             <span className={cn(
-              'rounded-full px-2 py-1 text-[10px] font-bold',
+              'rounded-full px-2 py-1 text-xs font-bold',
               'bg-warning/10 text-warning'
             )}>
               {soapCoverageComplete
@@ -254,7 +254,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
             {Object.entries(SOAP_REGION_LABELS).map(([region, label]) => {
               const state: SoapEvidence = soapCoverage[region] ?? 'NO_VERIFICABLE';
               return (
-                <div key={region} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2 py-1.5 text-[10px]">
+                <div key={region} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2 py-1.5 text-xs">
                   <span className="text-muted-foreground">{label}</span>
                   <span className={cn(
                     'shrink-0 font-bold text-muted-foreground'
@@ -269,7 +269,7 @@ export function StepStepper({ deploymentStatus }: StepStepperProps) {
       )}
 
       {!isActive && !summary && (
-        <div className="mt-5 rounded-xl bg-muted/50 px-4 py-3 text-center text-xs font-medium text-muted-foreground">
+        <div className="mt-5 rounded-lg bg-muted/50 px-4 py-3 text-center text-xs font-medium text-muted-foreground">
           Inicie una sesion para ver el progreso
         </div>
       )}
