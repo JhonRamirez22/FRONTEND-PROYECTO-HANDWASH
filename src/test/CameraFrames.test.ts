@@ -90,6 +90,6 @@ describe('step guidance in the overlay', () => {
     expect(waiting.calls).toContain('Esperando: Paso 2 · Dorsos');
     const wrong = fakeCtx();
     drawOverlay(wrong.ctx, { ...base, step: 'Paso5_Pulgar', err: true, hands: [hand] }, 100, 100);
-    expect(wrong.calls).toContain('Paso fuera de orden · se reinicia');
+    expect(wrong.calls).toContain('Paso incorrecto: hiciste el Paso 5 · Pulgar; tocaba el Paso 2 · Dorsos. Se reinicia desde Palmas');
   });
 });

@@ -31,6 +31,13 @@ export interface Overlay {
 
 export const STEP_NAMES = ['Palmas', 'Dorsos', 'Interdigitales', 'Nudillos', 'Pulgar', 'Punta de dedos'] as const;
 
+/** What the panel says when the wash goes out of order: what was done, what was due, and that it starts over. */
+export function wrongStepMessage(done: number | null, due: number): string {
+  const did = done ? `hiciste el Paso ${done} · ${STEP_NAMES[done - 1]}` : 'ese movimiento no corresponde';
+  const next = due > 0 ? `; tocaba el Paso ${due} · ${STEP_NAMES[due - 1]}` : '';
+  return `Paso incorrecto: ${did}${next}. Se reinicia desde Palmas`;
+}
+
 /** 'Paso2_Dorsos' -> 2, anything else -> null. */
 export function stepNumber(step: string | null): number | null {
   const match = /^Paso([1-6])_/.exec(step ?? '');
@@ -110,7 +117,7 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, overlay: Overlay, wid
     }
   }
   const first = hands[0]!;
-  const label = overlay.err ? 'Paso fuera de orden · se reinicia'
+  const label = overlay.err ? wrongStepMessage(detected, overlay.exp)
     : text ?? (overlay.exp > 0 ? `Esperando: Paso ${overlay.exp} · ${STEP_NAMES[overlay.exp - 1]}` : `Mano ${first.c.toFixed(2)}`);
   const labelWidth = ctx.measureText(label).width + 12;
   const top = Math.max(0, first.b[1] * sy - 26);
