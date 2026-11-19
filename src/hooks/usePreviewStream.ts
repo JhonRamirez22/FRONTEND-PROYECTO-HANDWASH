@@ -34,13 +34,25 @@ export function usePreviewStream(
     let attempt = 0;
     let currentUrl: string | null = null;
 
-    const showFrame = (blob: Blob) => {
+    // Only the newest frame is ever painted, once per screen refresh: if the browser falls behind, older frames are
+    // dropped instead of queued, so the delay cannot grow while the panel stays open.
+    let pending: Blob | null = null;
+    let frameRequest = 0;
+    const paint = () => {
+      frameRequest = 0;
+      const blob = pending;
+      pending = null;
+      if (!blob || !alive) return;
       const next = URL.createObjectURL(blob);
       if (currentUrl) URL.revokeObjectURL(currentUrl);
       currentUrl = next;
-      lastFrameAt.current = Date.now();
       setUrl(next);
       setLive(true);
+    };
+    const showFrame = (blob: Blob) => {
+      lastFrameAt.current = Date.now();
+      pending = blob;
+      if (!frameRequest) frameRequest = window.requestAnimationFrame(paint);
     };
 
     const connect = async () => {
@@ -69,6 +81,7 @@ export function usePreviewStream(
       alive = false;
       window.clearTimeout(retryTimer);
       window.clearInterval(watchdog);
+      if (frameRequest) window.cancelAnimationFrame(frameRequest);
       const closing = socket;
       socket = null;
       if (closing) { closing.onclose = null; closing.close(); }

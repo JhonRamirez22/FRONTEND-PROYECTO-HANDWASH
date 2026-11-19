@@ -34,11 +34,22 @@ describe('usePreviewStream', () => {
     expect(result.current.url).toBeNull();
 
     act(() => { FakeSocket.instances[0]!.onmessage?.({ data: new Blob([new Uint8Array([255, 216])]) }); });
-    expect(result.current.url).toBe('blob:frame-1');
+    await waitFor(() => expect(result.current.url).toBe('blob:frame-1'));
     expect(result.current.live).toBe(true);
     act(() => { FakeSocket.instances[0]!.onmessage?.({ data: new Blob([new Uint8Array([255, 216])]) }); });
-    expect(result.current.url).toBe('blob:frame-2');
+    await waitFor(() => expect(result.current.url).toBe('blob:frame-2'));
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:frame-1');
+  });
+
+  it('paints only the newest frame when several arrive before the screen refreshes', async () => {
+    setup();
+    const { result } = renderHook(() => usePreviewStream('s1', async () => 'T'.repeat(43), 'wss://api.example'));
+    await waitFor(() => expect(FakeSocket.instances.length).toBe(1));
+    act(() => {
+      for (let i = 0; i < 5; i += 1) FakeSocket.instances[0]!.onmessage?.({ data: new Blob([new Uint8Array([255, 216, i])]) });
+    });
+    await waitFor(() => expect(result.current.url).not.toBeNull());
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing without a session and closes the socket when the session ends', async () => {
