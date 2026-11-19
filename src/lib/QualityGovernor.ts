@@ -8,7 +8,7 @@ const LADDER: readonly PictureSetting[] = [
   { maxSide: 480, quality: 0.45 },
   { maxSide: 480, quality: 0.35 },
 ];
-const START = 0; // the direct HTTPS entry carries the full picture; it only shrinks when the uplink says so
+const START = 1; // 800 px: lighter to encode on the phone (more frames per second) and still plenty for the PC
 const CONGESTED_BEFORE_DROP = 2;
 const CLEAN_BEFORE_RISE = 45;
 
