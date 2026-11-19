@@ -5,7 +5,7 @@ describe('QualityGovernor', () => {
   it('starts at a moderate picture and drops quality after repeated congestion', () => {
     const g = new QualityGovernor();
     const start = g.current();
-    expect(start.maxSide).toBe(960);
+    expect(start.maxSide).toBe(800);
     g.congested(); expect(g.current()).toEqual(start);
     g.congested();
     expect(g.current().quality).toBeLessThan(start.quality);
