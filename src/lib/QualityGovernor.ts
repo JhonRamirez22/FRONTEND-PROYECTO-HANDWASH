@@ -8,7 +8,7 @@ const LADDER: readonly PictureSetting[] = [
   { maxSide: 480, quality: 0.45 },
   { maxSide: 480, quality: 0.35 },
 ];
-const START = 2;
+const START = 0; // the direct HTTPS entry carries the full picture; it only shrinks when the uplink says so
 const CONGESTED_BEFORE_DROP = 2;
 const CLEAN_BEFORE_RISE = 45;
 
