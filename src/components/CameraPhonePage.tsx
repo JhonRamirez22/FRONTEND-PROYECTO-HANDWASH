@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CameraPairingApi, cameraCodeFromHash } from '@/lib/CameraPairingApi';
-import { BrowserRtcCameraRelay, type CameraRelayState } from '@/lib/BrowserRtcCameraRelay';
-import { RelaySupervisor } from '@/lib/RelaySupervisor';
-import type { WebRtcAccess } from '@/lib/StationApi';
+import type { CameraRelayState } from '@/lib/BrowserRtcCameraRelay';
+import { CameraFrameSender } from '@/lib/CameraFrameSender';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 
 const TOKEN_KEY = 'handwash.camera.token';
@@ -17,15 +16,14 @@ interface SupervisorLike {
 interface CameraPhonePageProps {
   api?: CameraPairingApi;
   openCamera?: (facing: 'environment' | 'user') => Promise<MediaStream>;
-  makeSupervisor?: (access: (sessionId: string) => Promise<WebRtcAccess>) => SupervisorLike;
+  makeSupervisor?: (ticket: (sessionId: string) => Promise<string>) => SupervisorLike;
   pollMs?: number;
 }
 
 const defaultOpenCamera = (facing: 'environment' | 'user') => navigator.mediaDevices.getUserMedia({
   video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
 });
-const defaultSupervisor = (access: (sessionId: string) => Promise<WebRtcAccess>): SupervisorLike =>
-  new RelaySupervisor(new BrowserRtcCameraRelay(access));
+const defaultSupervisor = (ticket: (sessionId: string) => Promise<string>): SupervisorLike => new CameraFrameSender(ticket);
 
 const HEADLINE: Record<Phase, string> = {
   redeeming: 'Conectando…',
@@ -129,7 +127,7 @@ export function CameraPhonePage({
     const supervisor = makeSupervisorRef.current(async (sessionId) => {
       const result = await apiRef.current.ticket(token);
       if (result.kind !== 'ready' || result.sessionId !== sessionId) throw new Error('La sesión cambió');
-      return result.access;
+      return result.access.ticket;
     });
     const stopAll = () => { stopRelay?.(); stopRelay = null; currentSession = null; };
     const poll = async () => {

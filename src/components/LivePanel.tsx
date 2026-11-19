@@ -3,7 +3,7 @@ import { LoaderCircle, Play, Square } from 'lucide-react';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, phoneCodeFromHash } from '@/lib/OperatorKeySession';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { usePreviewStream } from '@/hooks/usePreviewStream';
+import { usePreviewCanvas } from '@/hooks/usePreviewCanvas';
 import { useSessionStore } from '@/stores/sessionStore';
 import { KioskProgress } from './KioskProgress';
 import { QrImage } from './QrImage';
@@ -25,8 +25,8 @@ function HealthItem({ label, state, detail }: { label: string; state: Health; de
 }
 
 /**
- * The annotated frame. It lives in its own component so that ~15 new images per second repaint only this <img>:
- * the panel around it re-renders only when "is it live" changes.
+ * The phone's picture with the PC's boxes over it. It lives in its own component so that ~15 new frames per second
+ * repaint only this <canvas>: the panel around it re-renders only when "is it live" changes.
  */
 const PreviewImage = memo(function PreviewImage({ sessionId, getTicket, onLive, empty }: {
   sessionId: string | null;
@@ -34,9 +34,12 @@ const PreviewImage = memo(function PreviewImage({ sessionId, getTicket, onLive, 
   onLive: (live: boolean) => void;
   empty: ReactNode;
 }) {
-  const { url, live } = usePreviewStream(sessionId, getTicket);
+  const { attachCanvas, live } = usePreviewCanvas(sessionId, getTicket);
   useEffect(() => { onLive(live); }, [live, onLive]);
-  return url && live ? <img src={url} alt="Cámara con las manos encuadradas" decoding="async" /> : <>{empty}</>;
+  return <>
+    <canvas ref={attachCanvas} className="live-video-canvas" role="img" aria-label="Cámara con las manos encuadradas" hidden={!live} />
+    {!live && empty}
+  </>;
 });
 
 const previewTicket = (id: string) => operatorApi.websocketTicket(KEY_SESSION, id);
