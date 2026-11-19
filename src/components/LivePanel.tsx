@@ -3,7 +3,7 @@ import { LoaderCircle, Play, Square } from 'lucide-react';
 import { OperatorApi, SessionExpiredError, type OperatorStatus, type ShiftView } from '@/lib/OperatorApi';
 import { KEY_SESSION, OperatorKeySession, phoneCodeFromHash } from '@/lib/OperatorKeySession';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { usePreviewCanvas } from '@/hooks/usePreviewCanvas';
+import { usePreviewCanvas, type DetectedSummary } from '@/hooks/usePreviewCanvas';
 import { useSessionStore } from '@/stores/sessionStore';
 import { KioskProgress } from './KioskProgress';
 import { QrImage } from './QrImage';
@@ -28,14 +28,16 @@ function HealthItem({ label, state, detail }: { label: string; state: Health; de
  * The phone's picture with the PC's boxes over it. It lives in its own component so that ~15 new frames per second
  * repaint only this <canvas>: the panel around it re-renders only when "is it live" changes.
  */
-const PreviewImage = memo(function PreviewImage({ sessionId, getTicket, onLive, empty }: {
+const PreviewImage = memo(function PreviewImage({ sessionId, getTicket, onLive, onDetected, empty }: {
   sessionId: string | null;
   getTicket: (sessionId: string) => Promise<string>;
   onLive: (live: boolean) => void;
+  onDetected: (detected: DetectedSummary | null) => void;
   empty: ReactNode;
 }) {
-  const { attachCanvas, live } = usePreviewCanvas(sessionId, getTicket);
+  const { attachCanvas, live, detected } = usePreviewCanvas(sessionId, getTicket);
   useEffect(() => { onLive(live); }, [live, onLive]);
+  useEffect(() => { onDetected(detected); }, [detected, onDetected]);
   return <>
     <canvas ref={attachCanvas} className="live-video-canvas" role="img" aria-label="Cámara con las manos encuadradas" hidden={!live} />
     {!live && empty}
@@ -56,6 +58,7 @@ export function LivePanel() {
   const active = useSessionStore((state) => state.isActive);
   const { connect, disconnect } = useWebSocket(async (id) => operatorApi.websocketTicket(KEY_SESSION, id));
   const [previewLive, setPreviewLive] = useState(false);
+  const [detected, setDetected] = useState<DetectedSummary | null>(null);
 
   // The ADMIN link (#/panel?phone=CODE) is traded once for this browser's own session.
   useEffect(() => {
@@ -178,14 +181,14 @@ export function LivePanel() {
         <section className="live-video" aria-label="Cámara con detección">
           <div className="live-video-head"><h2>Cámara y detección</h2><span>{previewLive ? 'Cámara conectada' : 'Sin cámara'}</span></div>
           <div className="live-video-stage">
-            <PreviewImage sessionId={active ? sessionId : null} getTicket={previewTicket} onLive={setPreviewLive} empty={
+            <PreviewImage sessionId={active ? sessionId : null} getTicket={previewTicket} onLive={setPreviewLive} onDetected={setDetected} empty={
               <div className="live-video-empty">
                 <strong>{shiftActive ? 'Esperando la cámara del celular' : 'La cámara no está iniciada'}</strong>
                 <span>{shiftActive ? 'Escanea el código de abajo.' : 'Pulsa “Iniciar cámara”.'}</span>
               </div>} />
           </div>
         </section>
-        <KioskProgress evaluating={previewLive} />
+        <KioskProgress evaluating={previewLive} detected={previewLive ? detected : null} />
       </div>
 
       <div className="live-panel-main">

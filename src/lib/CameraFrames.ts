@@ -21,6 +21,20 @@ export interface Overlay {
   step: string | null;
   conf: number | null;
   fps: number;
+  /** Steps done so far in the PC's own count (0 = none yet). */
+  cur: number;
+  /** The step the PC is waiting for next (0 = the wash is complete). */
+  exp: number;
+  /** True for a moment after a step out of order: the wash starts over. */
+  err: boolean;
+}
+
+export const STEP_NAMES = ['Palmas', 'Dorsos', 'Interdigitales', 'Nudillos', 'Pulgar', 'Punta de dedos'] as const;
+
+/** 'Paso2_Dorsos' -> 2, anything else -> null. */
+export function stepNumber(step: string | null): number | null {
+  const match = /^Paso([1-6])_/.exec(step ?? '');
+  return match ? Number(match[1]) : null;
 }
 
 /** A camera frame on the wire: 4-byte big-endian sequence followed by the JPEG. */
@@ -59,37 +73,50 @@ export function parseOverlay(text: string): Overlay | null {
     step: typeof raw.step === 'string' ? raw.step.slice(0, 64) : null,
     conf: finite(raw.conf) ? raw.conf : null,
     fps: finite(raw.fps) ? raw.fps : 0,
+    cur: finite(raw.cur) ? Math.max(0, Math.min(6, Math.round(raw.cur))) : 0,
+    exp: finite(raw.exp) ? Math.max(0, Math.min(6, Math.round(raw.exp))) : 1,
+    err: raw.err === true,
   };
 }
 
 const BLUE = '#5b9cf0';
-const LABEL = '#1d5fbf';
+const GREEN = '#2fa36b';
+const AMBER = '#e0a030';
 
 /** Draws the PC's boxes and landmarks over a picture shown at ``width`` x ``height``. */
 export function drawOverlay(ctx: CanvasRenderingContext2D, overlay: Overlay, width: number, height: number): void {
   if (!overlay.hands.length) return;
   const sx = width / overlay.w;
   const sy = height / overlay.h;
+  const detected = stepNumber(overlay.step);
+  // Joined hands arrive as the same box twice: one frame is enough.
+  const hands = overlay.hands.filter((hand, index) => overlay.hands.findIndex((other) => other.b.every((v, i) => v === hand.b[i])) === index);
+  const color = overlay.err ? AMBER : detected === null ? BLUE : GREEN;
+  const text = detected === null
+    ? null
+    : `Paso ${detected} · ${STEP_NAMES[detected - 1]}${overlay.conf !== null ? ` ${Math.round(overlay.conf * 100)}%` : ''}`;
   ctx.save();
   ctx.lineWidth = Math.max(2, Math.round(width / 320));
-  ctx.strokeStyle = BLUE;
-  ctx.font = `${Math.max(12, Math.round(width / 54))}px system-ui, sans-serif`;
-  for (const hand of overlay.hands) {
+  ctx.strokeStyle = color;
+  ctx.font = `600 ${Math.max(12, Math.round(width / 50))}px system-ui, sans-serif`;
+  for (const hand of hands) {
     const [x1, y1, x2, y2] = hand.b;
     ctx.strokeRect(x1 * sx, y1 * sy, (x2 - x1) * sx, (y2 - y1) * sy);
-    ctx.fillStyle = BLUE;
+    ctx.fillStyle = color;
     for (let i = 0; i + 1 < hand.k.length; i += 2) {
       ctx.beginPath();
       ctx.arc(hand.k[i]! * sx, hand.k[i + 1]! * sy, Math.max(2, ctx.lineWidth), 0, Math.PI * 2);
       ctx.fill();
     }
-    const label = `Mano ${hand.c.toFixed(2)}`;
-    const labelWidth = ctx.measureText(label).width + 10;
-    const top = Math.max(0, y1 * sy - 22);
-    ctx.fillStyle = LABEL;
-    ctx.fillRect(x1 * sx, top, labelWidth, 20);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(label, x1 * sx + 5, top + 15);
   }
+  const first = hands[0]!;
+  const label = overlay.err ? 'Paso fuera de orden · se reinicia'
+    : text ?? (overlay.exp > 0 ? `Esperando: Paso ${overlay.exp} · ${STEP_NAMES[overlay.exp - 1]}` : `Mano ${first.c.toFixed(2)}`);
+  const labelWidth = ctx.measureText(label).width + 12;
+  const top = Math.max(0, first.b[1] * sy - 26);
+  ctx.fillStyle = color;
+  ctx.fillRect(first.b[0] * sx, top, labelWidth, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(label, first.b[0] * sx + 6, top + 17);
   ctx.restore();
 }
