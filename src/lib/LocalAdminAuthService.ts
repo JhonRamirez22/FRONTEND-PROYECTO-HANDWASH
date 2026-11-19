@@ -101,7 +101,7 @@ export class LocalAdminAuthService implements AdminAuth {
   }
 
   async beginSignIn(): Promise<void> {
-    throw new Error('Este despliegue usa usuario, contraseña y código TOTP; no hay inicio de sesión por redirección.');
+    throw new Error('Este despliegue usa usuario y contraseña; no hay inicio de sesión por redirección.');
   }
 
   async beginSignUp(): Promise<void> {
