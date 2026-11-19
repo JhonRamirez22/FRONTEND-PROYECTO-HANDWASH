@@ -14,7 +14,6 @@ interface CloudAccessPageProps {
 export function CloudAccessPage({ message, onSignedIn }: CloudAccessPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [totp, setTotp] = useState('');
   const [enrollment, setEnrollment] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(message ?? null);
@@ -52,13 +51,11 @@ export function CloudAccessPage({ message, onSignedIn }: CloudAccessPageProps) {
     setError(null);
     setBusy(true);
     try {
-      const result = await localAdminAuth.login(username.trim(), password, totp.trim() || undefined);
+      const result = await localAdminAuth.login(username.trim(), password);
       if (result.kind === 'enrollment') {
         setEnrollment({ secret: result.secret, otpauthUri: result.otpauthUri });
-        setTotp('');
       } else {
         setPassword('');
-        setTotp('');
         onSignedIn?.();
       }
     } catch (cause) {
@@ -107,9 +104,6 @@ export function CloudAccessPage({ message, onSignedIn }: CloudAccessPageProps) {
             <label htmlFor="admin-password">Contraseña</label>
             <input id="admin-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password" required />
-            <label htmlFor="admin-totp">Código de 6 dígitos{enrollment ? '' : ' (déjalo vacío en tu primer ingreso)'}</label>
-            <input id="admin-totp" value={totp} onChange={(event) => setTotp(event.target.value)}
-              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} />
             <button className="button-primary access-submit" type="submit" disabled={!accessReady || busy}
               aria-describedby={!accessReady ? 'access-setup-note' : undefined}>
               <span>{busy ? 'Verificando…' : 'Iniciar sesión como ADMIN'}</span><ArrowRight size={17} />
